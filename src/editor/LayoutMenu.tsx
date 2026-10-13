@@ -1,11 +1,13 @@
 /**
- * The toolbar's Layout button (a grid icon) and its popover: grid spacing
- * (part of the diagram, so undoable and shared), zoom (a view setting), and
- * "Fit and Center".
+ * The toolbar's Layout button (a grid icon) and its popover, in order: grid
+ * spacing, zoom, label font size, arrow stroke width, grid visibility, and
+ * "Fit and Center". Spacing, font size and stroke belong to the diagram (so
+ * they are undoable, shared and exported); zoom and grid visibility are view
+ * settings (the grid is never exported).
  */
-import { setCellSize } from "../model/diagram";
-import { CELL_SIZE_RANGE } from "../model/types";
-import { Row, Slider } from "./controls";
+import { setCellSize, setFontSize, setStrokeWidth } from "../model/diagram";
+import { CELL_SIZE_RANGE, FONT_SIZE_RANGE, STROKE_WIDTH_RANGE } from "../model/types";
+import { Row, Slider, Switch } from "./controls";
 import { GridIcon } from "./icons";
 import { ZOOM_RANGE } from "./Canvas";
 import { usePopover } from "./usePopover";
@@ -18,9 +20,11 @@ interface LayoutMenuProps {
   readonly onZoom: (zoom: number) => void;
   /** Fit the diagram in view and centre it. */
   readonly onFit: () => void;
+  readonly showGrid: boolean;
+  readonly onShowGrid: (show: boolean) => void;
 }
 
-export const LayoutMenu = ({ editor, zoom, onZoom, onFit }: LayoutMenuProps) => {
+export const LayoutMenu = ({ editor, zoom, onZoom, onFit, showGrid, onShowGrid }: LayoutMenuProps) => {
   const popover = usePopover();
   const { diagram } = editor;
   return (
@@ -60,6 +64,31 @@ export const LayoutMenu = ({ editor, zoom, onZoom, onFit }: LayoutMenuProps) => 
               label="Zoom"
             />
           </Row>
+          <Row label="Font Size">
+            <Slider
+              min={FONT_SIZE_RANGE.min}
+              max={FONT_SIZE_RANGE.max}
+              step={1}
+              value={diagram.fontSize}
+              onChange={v => editor.commit(setFontSize(diagram, v), "fontSize")}
+              onSettle={editor.seal}
+              format={v => `${v}px`}
+              label="Label font size"
+            />
+          </Row>
+          <Row label="Stroke">
+            <Slider
+              min={STROKE_WIDTH_RANGE.min}
+              max={STROKE_WIDTH_RANGE.max}
+              step={0.1}
+              value={diagram.strokeWidth}
+              onChange={v => editor.commit(setStrokeWidth(diagram, v), "strokeWidth")}
+              onSettle={editor.seal}
+              format={v => `${v.toFixed(1)}px`}
+              label="Arrow stroke width"
+            />
+          </Row>
+          <Switch label="Show Grid" checked={showGrid} onChange={onShowGrid} />
           <div className="actions">
             <button type="button" onClick={onFit}>
               Fit and Center

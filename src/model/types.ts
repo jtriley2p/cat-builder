@@ -126,6 +126,10 @@ export interface Diagram {
   /** Distance between adjacent grid points, in px. */
   readonly cellSize: number;
   readonly colors: Colors;
+  /** Font size of object labels, in px (arrow labels are \scriptstyle of it). */
+  readonly fontSize: number;
+  /** Line width of arrows, in px; arrowheads and line spacing scale with it (see `styleFor`). */
+  readonly strokeWidth: number;
   /** Cells in topological order (see module docs). */
   readonly cells: readonly Cell[];
   /** Counter for generating fresh, session-unique cell ids. */
@@ -146,6 +150,10 @@ export const DEFAULT_EDGE_OPTIONS: EdgeOptions = {
 };
 
 export const CELL_SIZE_RANGE = { min: 50, max: 250, default: 100 } as const;
+/** Label font size, whole px. */
+export const FONT_SIZE_RANGE = { min: 10, max: 40, default: 20 } as const;
+/** Arrow line width, px in steps of 0.1. */
+export const STROKE_WIDTH_RANGE = { min: 0.6, max: 3, default: 1.2 } as const;
 
 /** Label given to vertices created by double-clicking the grid. */
 export const DEFAULT_VERTEX_LABEL = "\\bullet";

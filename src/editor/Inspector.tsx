@@ -20,11 +20,12 @@ import {
 import { typeset } from "../render/tex";
 import { Row, Segmented, Slider, type Choice } from "./controls";
 import { DirectionIcon, LabelSideIcon } from "./icons";
+import { MOD } from "./platform";
 import type { Editor } from "./useEditor";
 
 interface InspectorProps {
   readonly editor: Editor;
-  readonly labelRef: React.RefObject<HTMLInputElement | null>;
+  readonly labelRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 const STYLE_CHOICES: Choice<EdgeStyle>[] = [
@@ -102,6 +103,24 @@ const DirectionPad = ({ value, onChange }: { value: number; onChange: (angle: nu
   </div>
 );
 
+/** What Tab inserts in the label editor. */
+const INDENT = "    ";
+
+/**
+ * Type `text` at the caret of a (React-controlled) textarea, replacing any
+ * selection. `execCommand("insertText")` behaves like real typing: it fires
+ * the usual input event (so `onChange` runs) and keeps the browser's own
+ * undo for the field. It is deprecated but still universally supported; if
+ * it is ever refused, splice the value ourselves via `onChange` and put the
+ * caret back once React has re-rendered.
+ */
+const insertText = (el: HTMLTextAreaElement, text: string, onChange: (value: string) => void) => {
+  if (document.execCommand("insertText", false, text)) return;
+  const { selectionStart: start, selectionEnd: end, value } = el;
+  onChange(value.slice(0, start) + text + value.slice(end));
+  requestAnimationFrame(() => el.setSelectionRange(start + text.length, start + text.length));
+};
+
 export const Inspector = ({ editor, labelRef }: InspectorProps) => {
   const { diagram, selection } = editor;
   if (selection.size === 0) return null;
@@ -131,20 +150,34 @@ export const Inspector = ({ editor, labelRef }: InspectorProps) => {
         {single ? (single.kind === "vertex" ? "Object" : isLoop(single) ? "Loop" : "Arrow") : `${cells.length} selected`}
       </header>
 
+      {/* Multi-line, so long labels can be laid out over several lines (newlines
+          are whitespace in TeX, and `%` comments end at the line). Enter adds a
+          line; Tab indents; Esc or ⌘/Ctrl+Enter finishes. */}
       {labelled && (
         <label className="field">
-          <span>Label (TeX)</span>
-          <input
+          <span>
+            Label (TeX) <span className="field-hint">· Esc or {MOD}↩ to finish</span>
+          </span>
+          <textarea
             ref={labelRef}
             className={labelError ? "invalid" : ""}
             value={labelled.label}
+            rows={3}
             spellCheck={false}
             autoComplete="off"
             placeholder={labelled.kind === "vertex" ? "e.g. \\mathcal{C}" : "e.g. f"}
             onChange={e => editor.commit(setLabel(diagram, labelled.id, e.target.value), `label:${labelled.id}`)}
             onBlur={() => editor.seal()}
             onKeyDown={e => {
-              if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+              const el = e.currentTarget;
+              if (e.key === "Escape" || (e.key === "Enter" && (e.metaKey || e.ctrlKey))) {
+                e.preventDefault();
+                el.blur();
+              } else if (e.key === "Tab" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                // Indent rather than move focus (Shift+Tab still moves it back).
+                e.preventDefault();
+                insertText(el, INDENT, value => editor.commit(setLabel(diagram, labelled.id, value), `label:${labelled.id}`));
+              }
             }}
           />
           {labelError && <small className="error">{labelError}</small>}

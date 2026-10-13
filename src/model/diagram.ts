@@ -8,7 +8,9 @@ import {
   CURVE_RANGE,
   DEFAULT_COLORS,
   DEFAULT_EDGE_OPTIONS,
+  FONT_SIZE_RANGE,
   OFFSET_RANGE,
+  STROKE_WIDTH_RANGE,
   type Cell,
   type CellId,
   type Colors,
@@ -21,9 +23,14 @@ import {
 export const emptyDiagram = (cellSize: number = CELL_SIZE_RANGE.default, colors: Colors = DEFAULT_COLORS): Diagram => ({
   cellSize,
   colors,
+  fontSize: FONT_SIZE_RANGE.default,
+  strokeWidth: STROKE_WIDTH_RANGE.default,
   cells: [],
   nextId: 1,
 });
+
+/** The diagram with every cell removed, keeping its settings (spacing, colours, sizes). */
+export const clearCells = (d: Diagram): Diagram => ({ ...d, cells: [], nextId: 1 });
 
 /** Look up a cell by id. Linear, which is fine at diagram scale (tens of cells). */
 export const getCell = (d: Diagram, id: CellId): Cell | undefined => d.cells.find(c => c.id === id);
@@ -122,6 +129,16 @@ export const setCellSize = (d: Diagram, cellSize: number): Diagram => ({
 });
 
 export const setColors = (d: Diagram, patch: Partial<Colors>): Diagram => ({ ...d, colors: { ...d.colors, ...patch } });
+
+export const setFontSize = (d: Diagram, fontSize: number): Diagram => ({
+  ...d,
+  fontSize: clamp(Math.round(fontSize), FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max),
+});
+
+export const setStrokeWidth = (d: Diagram, strokeWidth: number): Diagram => ({
+  ...d,
+  strokeWidth: clamp(Math.round(strokeWidth * 10) / 10, STROKE_WIDTH_RANGE.min, STROKE_WIDTH_RANGE.max),
+});
 
 export type MoveError = "occupied";
 

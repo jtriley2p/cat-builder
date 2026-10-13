@@ -180,10 +180,11 @@ button.danger {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 4px;
   margin: 0;
-  /* Sized so the card matches the tool bar's height. */
-  padding: 6px 12px;
+  /* Sized so the card matches the tool bar's height (42px): the two lines
+     are ~13px each, so gap + vertical padding + border must total ~16px. */
+  padding: 5px 12px;
   color: var(--text);
   background: var(--panel);
   border: 1px solid var(--border);
@@ -444,7 +445,12 @@ circle.hl-hover {
   font-size: 12px;
 }
 
-.panel .field input {
+.panel .field .field-hint {
+  opacity: 0.75;
+}
+
+.panel .field input,
+.panel .field textarea {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   padding: 6px 8px;
@@ -453,7 +459,22 @@ circle.hl-hover {
   background: var(--bg);
 }
 
-.panel .field input.invalid {
+/* The label editor: grows with its content (where `field-sizing` is
+   supported) between 3 and ~12 lines, and can be resized by hand. */
+.panel .field textarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  line-height: 1.45;
+  resize: vertical;
+  field-sizing: content;
+  min-height: calc(3lh + 14px);
+  max-height: calc(12lh + 14px);
+  tab-size: 2;
+}
+
+.panel .field input.invalid,
+.panel .field textarea.invalid {
   border-color: var(--danger);
 }
 
@@ -520,6 +541,54 @@ circle.hl-hover {
   text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
+}
+
+/* On/off switch: a checkbox drawn as a knob sliding along a track. */
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+
+.switch:checked {
+  background: var(--accent);
+}
+
+.switch:checked::before {
+  transform: translateX(14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch::before {
+    transition: none;
+  }
+}
+
+/* A switch's row is its <label>, so clicking the text toggles it too. */
+label.row {
+  cursor: pointer;
 }
 
 .panel .actions {

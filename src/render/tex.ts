@@ -101,7 +101,8 @@ export const typeset = (tex: string, size: TexSize = "normal"): TexBox | null =>
   const hit = cache.get(key);
   if (hit) return hit;
 
-  const source = size === "script" ? `{\\scriptstyle ${tex}}` : tex;
+  // The closing brace goes on its own line so a trailing `%` comment can't swallow it.
+  const source = size === "script" ? `{\\scriptstyle ${tex}\n}` : tex;
   pendingError = null;
   let box: TexBox;
   try {

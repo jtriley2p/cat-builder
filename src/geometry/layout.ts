@@ -27,6 +27,7 @@ import {
   segment,
   tAtLength,
   tangent,
+  type ArcTable,
   type Cubic,
   type Shape,
 } from "./bezier";
@@ -35,6 +36,7 @@ import {
   addScaled,
   boxBounds,
   dist,
+  dot,
   fromAngle,
   inBox,
   leftNormal,
@@ -203,6 +205,13 @@ const edgeCurve = (a: Vec, b: Vec, o: EdgeOptions, side: 1 | -1, style: Style): 
 // ---------------------------------------------------------------------------
 
 /**
+ * How far a chevron's arms bow in toward its axis. In the frame of the tip
+ * and direction, each arm is a quadratic from a back corner (−length, ±half)
+ * through (−length/2, ±ARM_BOW·half) to the tip; 0.5 would be a straight arm.
+ */
+const ARM_BOW = 0.25;
+
+/**
  * An open, slightly curved arrowhead (in the style of Computer Modern's
  * arrow tips) with its tip at `tip`, pointing along `u`.
  */
@@ -212,10 +221,31 @@ const chevron = (tip: Vec, u: Vec, length: number, half: number): string => {
   const ctrl = addScaled(tip, u, -0.5 * length);
   const b1 = addScaled(back, n, half);
   const b2 = addScaled(back, n, -half);
-  const c1 = addScaled(ctrl, n, 0.25 * half);
-  const c2 = addScaled(ctrl, n, -0.25 * half);
+  const c1 = addScaled(ctrl, n, ARM_BOW * half);
+  const c2 = addScaled(ctrl, n, -ARM_BOW * half);
   return `M${fmtPt(b1)}Q${fmtPt(c1)} ${fmtPt(tip)}Q${fmtPt(c2)} ${fmtPt(b2)}`;
 };
+
+/**
+ * Whether `p` lies between the arms of the `chevron` with the same
+ * arguments, or anywhere behind its back corners: where the parallel lines
+ * of ⇒ / ⇛ can run without poking through the head.
+ *
+ * The arm's control point is midway along the axis, so its position along
+ * the axis is linear in the Bézier parameter: at w = (distance behind the
+ * tip) / length, the arm is half·((1 − 2·ARM_BOW)·w² + 2·ARM_BOW·w) off it.
+ */
+const withinChevron =
+  (tip: Vec, u: Vec, length: number, half: number) =>
+  (p: Vec): boolean => {
+    const r = sub(p, tip);
+    const behind = -dot(r, u);
+    if (behind <= 0) return false;
+    if (behind >= length) return true;
+    const w = behind / length;
+    const arm = half * ((1 - 2 * ARM_BOW) * w * w + 2 * ARM_BOW * w);
+    return Math.abs(dot(r, leftNormal(u))) < arm;
+  };
 
 const seg = (a: Vec, b: Vec) => polylinePath([a, b]);
 
@@ -305,12 +335,25 @@ const drawArrow = (curve: Cubic, e: Edge, side: 1 | -1, style: Style, typeset: T
   const placed = placeLabel(curve, e, clearance, side, style, typeset);
   const label = placed?.label ?? null;
 
-  // How far each line is pulled back from the ends to meet the head/tail
-  // outlines instead of poking through them. Lines further from the centre
-  // meet the (flaring) chevron arms sooner.
-  const meetsChevron = (d: number) => (headLen * Math.abs(d)) / headHalf;
-  const headRetract = (d: number) => (o.head === "none" ? 0 : d === 0 ? style.stroke / 2 : meetsChevron(d));
-  const tailRetract = (d: number) => (o.tail === "mono" ? headLen - meetsChevron(d) : 0);
+  const table = arcTable(curve);
+  const tip = point(curve, 1);
+  const tipDir = tangent(curve, 1);
+  const monoT = tAtLength(table, headLen);
+  const inHead = withinChevron(tip, tipDir, headLen, headHalf);
+  const inTail = withinChevron(point(curve, monoT), tangent(curve, monoT), headLen, headHalf);
+
+  // Where each line starts and stops, so it meets the head and mono-tail
+  // arms (ending on the arm's centre line, where its round cap is hidden by
+  // the arm's own stroke) instead of poking through or falling short. The
+  // centre line runs into the tip, less half a stroke to keep its cap inside.
+  // A line too short to reach the arms draws nothing.
+  const lineStart = (lc: Cubic): number => (o.tail === "mono" ? (exitParam(lc, inTail, true) ?? 1) : 0);
+  const lineEnd = (lc: Cubic, lt: ArcTable, d: number): number =>
+    o.head === "none"
+      ? 1
+      : d === 0
+        ? tAtLength(lt, lt.total - style.stroke / 2)
+        : (exitParam(lc, p => !inHead(p), false) ?? 0);
 
   // Break the shaft around a centred label.
   const gap =
@@ -322,9 +365,8 @@ const drawArrow = (curve: Cubic, e: Edge, side: 1 | -1, style: Style, typeset: T
   if (o.body !== "none") {
     for (const d of lineOffsets(o.lines, style.lineGap)) {
       const lc = offsetCurve(curve, d);
-      const table = arcTable(lc);
-      const start = tAtLength(table, tailRetract(d));
-      const end = tAtLength(table, table.total - headRetract(d));
+      const start = lineStart(lc);
+      const end = lineEnd(lc, arcTable(lc), d);
       for (const [a, b] of pieces) {
         const lo = Math.max(a, start);
         const hi = Math.min(b, end);
@@ -336,9 +378,6 @@ const drawArrow = (curve: Cubic, e: Edge, side: 1 | -1, style: Style, typeset: T
     }
   }
 
-  const table = arcTable(curve);
-  const tip = point(curve, 1);
-  const tipDir = tangent(curve, 1);
   if (o.head !== "none") strokes.push({ d: chevron(tip, tipDir, headLen, headHalf), dash: "solid" });
   if (o.head === "epi") {
     const t2 = tAtLength(table, table.total - style.epiGap);
@@ -348,8 +387,7 @@ const drawArrow = (curve: Cubic, e: Edge, side: 1 | -1, style: Style, typeset: T
   const start = point(curve, 0);
   const startDir = tangent(curve, 0);
   if (o.tail === "mono") {
-    const t = tAtLength(table, headLen);
-    strokes.push({ d: chevron(point(curve, t), tangent(curve, t), headLen, headHalf), dash: "solid" });
+    strokes.push({ d: chevron(point(curve, monoT), tangent(curve, monoT), headLen, headHalf), dash: "solid" });
   } else if (o.tail === "maps-to") {
     const n = leftNormal(startDir);
     strokes.push({ d: seg(addScaled(start, n, headHalf), addScaled(start, n, -headHalf)), dash: "solid" });

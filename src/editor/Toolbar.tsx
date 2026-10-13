@@ -21,6 +21,8 @@ interface ToolbarProps {
   readonly zoom: number;
   readonly onZoom: (zoom: number) => void;
   readonly onFit: () => void;
+  readonly showGrid: boolean;
+  readonly onShowGrid: (show: boolean) => void;
   readonly exportSettings: ExportSettings;
   readonly setExportSettings: (s: ExportSettings) => void;
   readonly onExport: () => void;
@@ -34,6 +36,7 @@ const HELP: [string, string][] = [
   ["Drag empty space", "Box select (⇧ to add)"],
   ["Click / ⇧-click", "Select / toggle selection"],
   ["Double-click / Enter", "Edit label"],
+  [`Esc / ${MOD}↩`, "Finish editing the label (Enter adds a line)"],
   ["Arrow keys", "Nudge selected objects"],
   ["⌫ / Delete", "Delete selection"],
   [`${MOD}Z / ${MOD}⇧Z`, "Undo / redo"],
@@ -42,13 +45,24 @@ const HELP: [string, string][] = [
   [`Pinch · ${MOD}scroll`, "Zoom"],
 ];
 
-export const Toolbar = ({ editor, onClear, zoom, onZoom, onFit, exportSettings, setExportSettings, onExport }: ToolbarProps) => {
+export const Toolbar = ({
+  editor,
+  onClear,
+  zoom,
+  onZoom,
+  onFit,
+  showGrid,
+  onShowGrid,
+  exportSettings,
+  setExportSettings,
+  onExport,
+}: ToolbarProps) => {
   const help = usePopover();
   const empty = editor.diagram.cells.length === 0;
 
   return (
     <header className="toolbar" aria-label="Tools">
-      <LayoutMenu editor={editor} zoom={zoom} onZoom={onZoom} onFit={onFit} />
+      <LayoutMenu editor={editor} zoom={zoom} onZoom={onZoom} onFit={onFit} showGrid={showGrid} onShowGrid={onShowGrid} />
       <ColorsMenu editor={editor} />
       <ExportMenu editor={editor} settings={exportSettings} setSettings={setExportSettings} onExport={onExport} />
 

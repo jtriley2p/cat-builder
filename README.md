@@ -25,8 +25,12 @@ render the same in browsers, Inkscape/Illustrator/Figma, and when rasterised.
 - Autosave to browser storage; share links (Export → Link: the diagram is compressed into the
   URL hash)
 - A floating tool bar (top right; bottom centre on screens ≤700px wide): layout (grid spacing,
-  zoom, fit and center), colours, export, undo, redo, clear (undoable, with a short notice) and
-  info
+  zoom, label font size, arrow stroke width, show grid, fit and center), colours, export, undo,
+  redo, clear (undoable, with a short notice) and info. The grid is an editing aid only and is
+  never exported
+- Label font size and arrow stroke width belong to the diagram, like its colours: saved, undoable,
+  shared and exported as shown. Arrowheads, double-line spacing, dashes and the like scale with
+  the stroke so heavier arrows keep their proportions
 - Diagram colours: a stroke colour (arrows and labels) and a background colour, each with an
   opacity. The canvas is drawn in them live, a checkerboard shows through wherever the
   background is transparent, and they're saved with the diagram (autosave, undo, share links).
@@ -47,6 +51,8 @@ Diagram data is **not** embedded in exported images; use share links to reopen a
 | Drag empty space                           | Box select (⇧ adds)                                            |
 | Click / ⇧-click                            | Select / toggle (anywhere in an object's square selects it)    |
 | Double-click a cell / Enter                | Edit its label                                                 |
+| Esc / ⌘↩ (in the label)                    | Finish editing (Enter adds a line; newlines are just spacing)  |
+| Tab (in the label)                         | Indent with four spaces (⇧Tab leaves the field)                |
 | Arrow keys                                 | Nudge selected objects                                         |
 | ⌫ / Delete                                 | Delete selection (and everything attached to it)               |
 | ⌘Z / ⌘⇧Z                                   | Undo / redo                                                    |

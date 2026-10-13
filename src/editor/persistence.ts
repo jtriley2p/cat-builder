@@ -1,6 +1,7 @@
 /**
  * Browser-side persistence: autosave to localStorage and share links in the
  * URL hash. Diagrams are deliberately *not* embedded in exported images.
+ * Also the per-browser "show grid" view preference.
  *
  * Storage can be unavailable (private windows, blocked site data) or full, so
  * every access is guarded and failures come back as enumerated errors.
@@ -38,6 +39,28 @@ export const describeStorageError = (e: StorageError): string =>
   e === "quota-exceeded"
     ? "Autosave failed: browser storage is full."
     : "Autosave is unavailable (browser storage is blocked), so work is not kept between visits.";
+
+const SHOW_GRID_KEY = "cat-builder:show-grid";
+
+/**
+ * Whether the canvas grid is shown. A per-browser view preference, not part
+ * of the diagram (the grid is never exported); on unless turned off.
+ */
+export const loadShowGrid = (): boolean => {
+  try {
+    return localStorage.getItem(SHOW_GRID_KEY) !== "false";
+  } catch {
+    return true;
+  }
+};
+
+export const saveShowGrid = (show: boolean): void => {
+  try {
+    localStorage.setItem(SHOW_GRID_KEY, String(show));
+  } catch {
+    // Not worth bothering the user about: the preference just won't persist.
+  }
+};
 
 /** A link that opens this diagram. */
 export const shareUrl = async (d: Diagram): Promise<string> => {

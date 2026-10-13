@@ -9,7 +9,7 @@ import { typeset } from "../render/tex";
 const LINES = ["Cat", "Builder"];
 
 /** Font size of the title, in px. */
-const EM = 18;
+const EM = 24;
 
 export const Title = () => {
   const boxes = useMemo(() => LINES.map(line => typeset(`\\textit{${line}}`, "normal")), []);

@@ -1,8 +1,11 @@
 /**
  * Visual constants for drawing diagrams, in px at zoom 1. Kept in one object
  * so geometry functions take them as a parameter instead of reaching for
- * globals (and so tests can use simpler values if they want).
+ * globals (and so tests can use simpler values if they want). A diagram's
+ * own style comes from its font size and stroke width via `styleFor`.
  */
+import { FONT_SIZE_RANGE, STROKE_WIDTH_RANGE } from "../model/types";
+
 export interface Style {
   /** Font size of vertex labels (edge labels are \scriptstyle of this). */
   readonly em: number;
@@ -49,9 +52,9 @@ export interface Style {
 }
 
 export const DEFAULT_STYLE: Style = {
-  em: 20,
+  em: FONT_SIZE_RANGE.default,
   axisHeight: 0.25,
-  stroke: 1.2,
+  stroke: STROKE_WIDTH_RANGE.default,
   lineGap: 3.6,
   headLength: 6.5,
   headHalfWidth: 4.5,
@@ -73,4 +76,38 @@ export const DEFAULT_STYLE: Style = {
   cornerDistance: 10,
   cornerSize: 7,
   turnstileSize: 5,
+};
+
+/** Scale every length in a dash pattern such as "4 4". */
+const scaleDash = (pattern: string, k: number): string =>
+  pattern
+    .split(" ")
+    .map(n => Number((Number(n) * k).toFixed(2)))
+    .join(" ");
+
+/**
+ * The style for a diagram's font size and stroke width (both in px).
+ *
+ * The arrow details drawn with the stroke scale in proportion to its width,
+ * so heavier arrows keep their shape: arrowheads, the spacing of ⇒/⇛ (which
+ * would otherwise merge), epi heads, hooks, dash and dot patterns, and
+ * squiggles. Clearances, ⊣ and corner marks, and loop geometry stay fixed.
+ */
+export const styleFor = (em: number, stroke: number): Style => {
+  const d = DEFAULT_STYLE;
+  const k = stroke / d.stroke;
+  return {
+    ...d,
+    em,
+    stroke,
+    lineGap: d.lineGap * k,
+    headLength: d.headLength * k,
+    headHalfWidth: d.headHalfWidth * k,
+    epiGap: d.epiGap * k,
+    hookRadius: d.hookRadius * k,
+    dashArray: scaleDash(d.dashArray, k),
+    dotArray: scaleDash(d.dotArray, k),
+    squiggleWavelength: d.squiggleWavelength * k,
+    squiggleAmplitude: d.squiggleAmplitude * k,
+  };
 };

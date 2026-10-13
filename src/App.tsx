@@ -6,7 +6,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Canvas, ZOOM_RANGE, type View } from "./editor/Canvas";
 import { Inspector } from "./editor/Inspector";
-import { clearHash, describeStorageError, loadAutosave, readSharedDiagram, saveAutosave, shareUrl } from "./editor/persistence";
+import {
+  clearHash,
+  describeStorageError,
+  loadAutosave,
+  loadShowGrid,
+  readSharedDiagram,
+  saveAutosave,
+  saveShowGrid,
+  shareUrl,
+} from "./editor/persistence";
 import { loadExportSettings, saveExportSettings, type ExportSettings } from "./editor/exportSettings";
 import { UNDO_SHORTCUT } from "./editor/platform";
 import { Title } from "./editor/Title";
@@ -14,7 +23,7 @@ import { Toolbar } from "./editor/Toolbar";
 import { useEditor, type Editor } from "./editor/useEditor";
 import { isEmptyBounds } from "./geometry/vec";
 import { describeDecodeError } from "./model/codec";
-import { emptyDiagram, moveVertices, removeCells } from "./model/diagram";
+import { clearCells, emptyDiagram, moveVertices, removeCells } from "./model/diagram";
 import type { Diagram } from "./model/types";
 import { describeExportError, downloadBlob, exportImage } from "./render/export";
 import "./index.css";
@@ -72,10 +81,11 @@ export function App() {
   const [toasts, toast] = useToasts();
   const [view, setView] = useState<View>({ x: 0, y: 0, zoom: 1 });
   const [panMode, setPanMode] = useState(false);
+  const [showGrid, setShowGrid] = useState(loadShowGrid);
   const [exportSettings, setExportSettings] = useState(loadExportSettings);
   const [fitRequest, setFitRequest] = useState(0);
   const svgRef = useRef<SVGSVGElement>(null);
-  const labelRef = useRef<HTMLInputElement>(null);
+  const labelRef = useRef<HTMLTextAreaElement>(null);
 
   const focusLabel = useCallback(
     () =>
@@ -126,6 +136,11 @@ export function App() {
       return { zoom, x: mx - (mx - v.x) * k, y: my - (my - v.y) * k };
     });
   }, []);
+
+  const updateShowGrid = (show: boolean) => {
+    setShowGrid(show);
+    saveShowGrid(show);
+  };
 
   // --- Persistence ----------------------------------------------------------
 
@@ -181,7 +196,7 @@ export function App() {
     const d = editor.diagram;
     if (d.cells.length === 0) return;
     // No confirmation: clearing is one undo away, which the notice points out.
-    const empty = emptyDiagram(d.cellSize, d.colors);
+    const empty = clearCells(d);
     editor.commit(empty, null, []);
     setCleared({ diagram: empty, id: Date.now() });
   };
@@ -301,6 +316,7 @@ export function App() {
           view={view}
           setView={setView}
           panMode={panMode}
+          showGrid={showGrid}
           onCreated={focusLabel}
           onEditLabel={focusLabel}
           onError={msg => toast(msg, "error")}
@@ -316,6 +332,8 @@ export function App() {
           zoom={view.zoom}
           onZoom={zoomTo}
           onFit={fit}
+          showGrid={showGrid}
+          onShowGrid={updateShowGrid}
           exportSettings={exportSettings}
           setExportSettings={updateExportSettings}
           onExport={onExport}

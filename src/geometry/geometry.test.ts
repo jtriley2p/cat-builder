@@ -4,7 +4,7 @@ import type { Diagram, EdgeOptions } from "../model/types";
 import type { TexBox } from "../render/tex";
 import { arcTable, exitParam, line, offset, point, segment, split } from "./bezier";
 import { layoutDiagram, type EdgeLayout, type Typeset } from "./layout";
-import { DEFAULT_STYLE } from "./style";
+import { DEFAULT_STYLE, styleFor } from "./style";
 import { dist, inBox, vec } from "./vec";
 
 const close = (a: number, b: number, eps = 1e-6) => expect(Math.abs(a - b)).toBeLessThan(eps);
@@ -108,6 +108,29 @@ describe("layout", () => {
     expect(strokes({ style: "pullback" })).toBe(1);
   });
 
+  test("the lines of ⇒ end on the head and mono-tail arms instead of crossing them", () => {
+    // Coordinates of an SVG path, in order.
+    const nums = (d: string) => (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+    const [top, bottom, head, tail] = edgeLayout(twoObjects({ lines: 2, tail: "mono" }, "").d, "c3").strokes.map(
+      s => nums(s.d) as [number, number, number, number, number, number, number, number, number, number],
+    );
+    // Height at `x` of a chevron's arm on the same side of its axis as `y`
+    // (path "M b1 Q c1 tip Q c2 b2"; the arrow is horizontal, and an arm's x
+    // is linear in its parameter).
+    const armY = (ch: NonNullable<typeof head>, x: number, y: number) => {
+      const [tx, ty] = [ch[4], ch[5]];
+      const [bx, by, cx, cy] = y < ty === ch[1] < ty ? [ch[0], ch[1], ch[2], ch[3]] : [ch[8], ch[9], ch[6], ch[7]];
+      const t = (x - bx) / (tx - bx);
+      expect(t).toBeGreaterThan(0);
+      expect(t).toBeLessThan(1);
+      return (1 - t) ** 2 * by + 2 * t * (1 - t) * cy + t * t * ty;
+    };
+    for (const l of [top!, bottom!]) {
+      close(armY(head!, l[6], l[7]), l[7], 0.03); // end meets the head
+      close(armY(tail!, l[0], l[1]), l[1], 0.03); // start meets the tail
+    }
+  });
+
   test("a 2-cell attaches near the middles of its arrows", () => {
     // Rightward arrows: negative curve bends up (toward "left"), positive down.
     let { d, a, b, e: f } = twoObjects({ curve: -3 });
@@ -201,5 +224,34 @@ describe("layout", () => {
     const layout = layoutDiagram(d, DEFAULT_STYLE, fakeTypeset);
     const label = (layout.byId.get("c3") as EdgeLayout).label!.box;
     expect(layout.bounds.minY).toBeLessThanOrEqual(label.cy - label.hh);
+  });
+});
+
+describe("styleFor", () => {
+  test("the default sizes give the default style", () => {
+    expect(styleFor(DEFAULT_STYLE.em, DEFAULT_STYLE.stroke)).toEqual(DEFAULT_STYLE);
+  });
+
+  test("arrow details scale with the stroke; clearances and font size don't", () => {
+    const heavy = styleFor(DEFAULT_STYLE.em, DEFAULT_STYLE.stroke * 2);
+    close(heavy.headLength, DEFAULT_STYLE.headLength * 2, 1e-9);
+    close(heavy.lineGap, DEFAULT_STYLE.lineGap * 2, 1e-9);
+    expect(heavy.dashArray).toBe("8 8");
+    expect(heavy.vertexPad).toBe(DEFAULT_STYLE.vertexPad);
+    expect(heavy.em).toBe(DEFAULT_STYLE.em);
+    // Parallel lines of ⇒ stay apart: the gap between them grows with the width.
+    expect(heavy.lineGap - heavy.stroke).toBeGreaterThan(DEFAULT_STYLE.lineGap - DEFAULT_STYLE.stroke);
+  });
+
+  test("font size scales labels", () => {
+    let d: Diagram = emptyDiagram(100);
+    const v = addVertex(d, 0, 0, "A");
+    if (!v.ok) throw new Error("setup failed");
+    d = v.value.diagram;
+    const width = (em: number) => {
+      const c = layoutDiagram(d, styleFor(em, DEFAULT_STYLE.stroke), fakeTypeset).byId.get(v.value.id)!;
+      return c.kind === "vertex" && c.label ? c.label.box.hw : NaN;
+    };
+    close(width(40), width(20) * 2, 1e-9);
   });
 });

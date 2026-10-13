@@ -40,6 +40,17 @@ export const Row = ({ label, children }: { label: string; children: ReactNode })
   </div>
 );
 
+/**
+ * A labelled on/off switch filling a panel row. The whole row is the
+ * checkbox's <label>, so clicking the text toggles it as well.
+ */
+export const Switch = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
+  <label className="row">
+    <span className="row-label">{label}</span>
+    <input type="checkbox" role="switch" className="switch" checked={checked} onChange={e => onChange(e.target.checked)} />
+  </label>
+);
+
 export const Slider = ({
   min,
   max,

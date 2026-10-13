@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { decodeJson, decodeLinkHash, encodeJson, encodeLinkHash, fromCompact, toCompact } from "./codec";
-import { addEdge, addVertex, emptyDiagram, setColors } from "./diagram";
-import { DEFAULT_COLORS, type Diagram } from "./types";
+import { addEdge, addVertex, emptyDiagram, setColors, setFontSize, setStrokeWidth } from "./diagram";
+import { DEFAULT_COLORS, FONT_SIZE_RANGE, STROKE_WIDTH_RANGE, type Diagram } from "./types";
 
 const build = (): Diagram => {
   let d = emptyDiagram(120);
@@ -73,6 +73,22 @@ describe("codec", () => {
     expect(r.ok && r.value.colors).toEqual(DEFAULT_COLORS);
   });
 
+  test("sizes round-trip next to the colours, and default sizes are left out", async () => {
+    const sized = setStrokeWidth(setFontSize(build(), 26), 2.4);
+    expect(toCompact(sized)[3]).toEqual({ f: 26, w: 2.4 });
+    const colored = setColors(sized, { stroke: { color: "#123456", alpha: 1 } });
+    expect(toCompact(colored)[3]).toEqual({ s: ["#123456", 1], f: 26, w: 2.4 });
+
+    const viaLink = await decodeLinkHash(await encodeLinkHash(colored));
+    expect(viaLink.ok && [viaLink.value.fontSize, viaLink.value.strokeWidth]).toEqual([26, 2.4]);
+    expect(viaLink.ok && content(viaLink.value)).toEqual(content(colored));
+  });
+
+  test("data from before sizes existed decodes with the default sizes", () => {
+    const r = fromCompact([1, 100, [[0, 0, "A"]], { s: ["#aa0000", 1] }]);
+    expect(r.ok && [r.value.fontSize, r.value.strokeWidth]).toEqual([FONT_SIZE_RANGE.default, STROKE_WIDTH_RANGE.default]);
+  });
+
   test("damaged links are reported, not thrown", async () => {
     expect(await decodeLinkHash("#d=!!!")).toEqual({ ok: false, error: { kind: "malformed-link" } });
     expect(await decodeLinkHash("#d=AAAA")).toEqual({ ok: false, error: { kind: "malformed-link" } });
@@ -93,5 +109,7 @@ describe("codec", () => {
     expect(bad([1, 100, [], { s: ["red", 1] }])).toBe(true); // not a hex colour
     expect(bad([1, 100, [], { b: ["#ffffff"] }])).toBe(true); // missing alpha
     expect(bad([1, 100, [], []])).toBe(true); // colours must be an object
+    expect(bad([1, 100, [], { f: 500 }])).toBe(true); // font size out of range
+    expect(bad([1, 100, [], { w: "thick" }])).toBe(true); // stroke width not a number
   });
 });

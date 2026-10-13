@@ -2,14 +2,17 @@ import { describe, expect, test } from "bun:test";
 import {
   addEdge,
   addVertex,
+  clearCells,
   emptyDiagram,
   moveVertices,
   removeCells,
   reverseEdges,
+  setFontSize,
+  setStrokeWidth,
   updateEdgeOptions,
   vertexAt,
 } from "./diagram";
-import type { Diagram } from "./types";
+import { FONT_SIZE_RANGE, STROKE_WIDTH_RANGE, type Diagram } from "./types";
 
 /** Unwrap a Result in tests, failing loudly on the error branch. */
 const must = <T>(r: { ok: true; value: T } | { ok: false; error: unknown }): T => {
@@ -89,5 +92,25 @@ describe("diagram operations", () => {
     must(moveVertices(d, [a], 0, 5));
     updateEdgeOptions(d, d.cells.map(c => c.id), { lines: 2 });
     expect(JSON.stringify(d)).toBe(snapshot);
+  });
+});
+
+describe("diagram settings", () => {
+  test("font size and stroke width are rounded and clamped to their ranges", () => {
+    const d = emptyDiagram();
+    expect(setFontSize(d, 23.6).fontSize).toBe(24);
+    expect(setFontSize(d, 1).fontSize).toBe(FONT_SIZE_RANGE.min);
+    expect(setFontSize(d, 999).fontSize).toBe(FONT_SIZE_RANGE.max);
+    expect(setStrokeWidth(d, 1.7000000000000002).strokeWidth).toBe(1.7);
+    expect(setStrokeWidth(d, 0).strokeWidth).toBe(STROKE_WIDTH_RANGE.min);
+    expect(setStrokeWidth(d, 99).strokeWidth).toBe(STROKE_WIDTH_RANGE.max);
+  });
+
+  test("clearing removes every cell but keeps the settings", () => {
+    let d = setStrokeWidth(setFontSize(emptyDiagram(150), 30), 2);
+    d = must(addVertex(d, 0, 0, "A")).diagram;
+    const cleared = clearCells(d);
+    expect(cleared.cells).toEqual([]);
+    expect({ ...cleared, cells: d.cells, nextId: d.nextId }).toEqual(d);
   });
 });

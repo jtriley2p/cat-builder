@@ -3,17 +3,19 @@
  *
  * Compact form (kept small because it ends up in URLs):
  *
- *     [version, cellSize, cells, colors?]
- *     vertex: [col, row, label]
- *     edge:   [sourceIndex, targetIndex, label, options]
- *     colors: { s?: [hex, alpha], b?: [hex, alpha] }   (stroke, background)
+ *     [version, cellSize, cells, appearance?]
+ *     vertex:     [col, row, label]
+ *     edge:       [sourceIndex, targetIndex, label, options]
+ *     appearance: { s?: [hex, alpha], b?: [hex, alpha], f?: fontSize, w?: strokeWidth }
+ *                 (stroke colour, background colour, label size, line width)
  *
  * Endpoints are indices into `cells` and must point *backwards* (the
  * topological-order invariant). `options` only lists values that differ from
  * `DEFAULT_EDGE_OPTIONS`, using the short keys in `OPTION_KEYS`. Likewise
- * `colors` only lists colours that differ from `DEFAULT_COLORS`, and is
- * omitted entirely when both are default — so data written before colours
- * existed (three elements) is still valid.
+ * `appearance` only lists settings that differ from their defaults, and is
+ * omitted entirely when all are default — so data written before colours
+ * existed (three elements) is still valid, as is data written before sizes
+ * existed (colours only).
  *
  * Share links are `#d=` + base64url(deflate-raw(JSON(compact))).
  */
@@ -26,9 +28,11 @@ import {
   DEFAULT_COLORS,
   DEFAULT_EDGE_OPTIONS,
   EDGE_STYLES,
+  FONT_SIZE_RANGE,
   HEAD_STYLES,
   LABEL_SIDES,
   LINE_COUNTS,
+  STROKE_WIDTH_RANGE,
   TAIL_STYLES,
   type Cell,
   type CellId,
@@ -124,16 +128,16 @@ const decodeOptions = (raw: unknown, where: string): Result<EdgeOptions, DecodeE
 const COLOR_KEYS = { stroke: "s", background: "b" } as const satisfies Record<keyof Colors, string>;
 const colorKeys = Object.keys(COLOR_KEYS) as (keyof Colors)[];
 
-/** Non-default colours as `{ s: [hex, alpha], … }`, or null when all are default. */
-const encodeColors = (c: Colors): Record<string, readonly [string, number]> | null => {
-  const entries = colorKeys
-    .filter(k => !samePaint(c[k], DEFAULT_COLORS[k]))
-    .map(k => [COLOR_KEYS[k], [c[k].color, Math.round(c[k].alpha * 1000) / 1000]] as const);
-  return entries.length === 0 ? null : Object.fromEntries(entries);
-};
+/** Non-default colours as `{ s: [hex, alpha], … }` (empty when all are default). */
+const encodeColors = (c: Colors): Record<string, readonly [string, number]> =>
+  Object.fromEntries(
+    colorKeys
+      .filter(k => !samePaint(c[k], DEFAULT_COLORS[k]))
+      .map(k => [COLOR_KEYS[k], [c[k].color, Math.round(c[k].alpha * 1000) / 1000]] as const),
+  );
 
 const decodeColors = (raw: unknown): Result<Colors, DecodeError> => {
-  if (!isRecord(raw)) return invalid("colours must be an object");
+  if (!isRecord(raw)) return invalid("colours and sizes must be an object");
   const out: Record<string, Paint> = { ...DEFAULT_COLORS };
   for (const k of colorKeys) {
     const stored = raw[COLOR_KEYS[k]];
@@ -143,6 +147,31 @@ const decodeColors = (raw: unknown): Result<Colors, DecodeError> => {
     out[k] = paint;
   }
   return ok(out as unknown as Colors);
+};
+
+// ---------------------------------------------------------------------------
+// Sizes <-> short-key objects (stored alongside the colours)
+// ---------------------------------------------------------------------------
+
+type Sizes = Pick<Diagram, "fontSize" | "strokeWidth">;
+
+const SIZE_KEYS = { fontSize: "f", strokeWidth: "w" } as const satisfies Record<keyof Sizes, string>;
+const SIZE_RANGES = { fontSize: FONT_SIZE_RANGE, strokeWidth: STROKE_WIDTH_RANGE } as const;
+const sizeKeys = Object.keys(SIZE_KEYS) as (keyof Sizes)[];
+
+/** Non-default sizes as `{ f: 24, … }` (empty when all are default). */
+const encodeSizes = (d: Sizes): Record<string, number> =>
+  Object.fromEntries(sizeKeys.filter(k => d[k] !== SIZE_RANGES[k].default).map(k => [SIZE_KEYS[k], d[k]]));
+
+const decodeSizes = (raw: Record<string, unknown>): Result<Sizes, DecodeError> => {
+  const out: Record<string, number> = {};
+  for (const k of sizeKeys) {
+    const { min, max, default: fallback } = SIZE_RANGES[k];
+    const stored = raw[SIZE_KEYS[k]] ?? fallback;
+    if (typeof stored !== "number" || !(stored >= min && stored <= max)) return invalid(`${k} out of range`);
+    out[k] = stored;
+  }
+  return ok(out as unknown as Sizes);
 };
 
 // ---------------------------------------------------------------------------
@@ -156,8 +185,10 @@ export const toCompact = (d: Diagram): unknown[] => {
       ? [c.col, c.row, c.label]
       : [index.get(c.source), index.get(c.target), c.label, encodeOptions(c.options)],
   );
-  const colors = encodeColors(d.colors);
-  return colors ? [FORMAT_VERSION, d.cellSize, cells, colors] : [FORMAT_VERSION, d.cellSize, cells];
+  const appearance = { ...encodeColors(d.colors), ...encodeSizes(d) };
+  return Object.keys(appearance).length > 0
+    ? [FORMAT_VERSION, d.cellSize, cells, appearance]
+    : [FORMAT_VERSION, d.cellSize, cells];
 };
 
 const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -165,14 +196,16 @@ const isInt = (x: unknown): x is number => Number.isInteger(x);
 const invalid = (detail: string) => err<DecodeError>({ kind: "invalid-structure", detail });
 
 export const fromCompact = (raw: unknown): Result<Diagram, DecodeError> => {
-  if (!Array.isArray(raw) || (raw.length !== 3 && raw.length !== 4)) return invalid("expected [version, cellSize, cells, colors?]");
-  const [version, cellSize, rawCells, rawColors] = raw;
+  if (!Array.isArray(raw) || (raw.length !== 3 && raw.length !== 4)) return invalid("expected [version, cellSize, cells, appearance?]");
+  const [version, cellSize, rawCells, rawAppearance = {}] = raw;
   if (version !== FORMAT_VERSION) return err({ kind: "unsupported-version", version });
   if (typeof cellSize !== "number" || cellSize < CELL_SIZE_RANGE.min || cellSize > CELL_SIZE_RANGE.max)
     return invalid("cell size out of range");
   if (!Array.isArray(rawCells)) return invalid("cells must be a list");
-  const colors = rawColors === undefined ? ok(DEFAULT_COLORS) : decodeColors(rawColors);
+  const colors = decodeColors(rawAppearance);
   if (!colors.ok) return colors;
+  const sizes = decodeSizes(rawAppearance as Record<string, unknown>);
+  if (!sizes.ok) return sizes;
 
   const cells: Cell[] = [];
   const occupied = new Set<string>();
@@ -200,7 +233,7 @@ export const fromCompact = (raw: unknown): Result<Diagram, DecodeError> => {
       return invalid(`${where} has the wrong shape`);
     }
   }
-  return ok({ cellSize, colors: colors.value, cells, nextId: cells.length + 1 });
+  return ok({ cellSize, colors: colors.value, ...sizes.value, cells, nextId: cells.length + 1 });
 };
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,15 @@ test("typeset produces paths and reports TeX errors without throwing", () => {
   expect(typeset("x^{", "script")?.error).toBeTruthy();
 });
 
+test("multi-line labels: newlines are whitespace and % comments end at the line", () => {
+  const flat = typeset("f \\circ g", "script");
+  const lines = typeset("f\n\\circ g % composite", "script");
+  expect(lines?.error).toBeNull();
+  expect(lines?.width).toBeCloseTo(flat!.width);
+  // A trailing comment must not swallow the script-size wrapper's closing brace.
+  expect(typeset("f % the map", "script")?.error).toBeNull();
+});
+
 const BLACK: Paint = { color: "#000000", alpha: 1 };
 const CLEAR: Paint = { color: "#ffffff", alpha: 0 };
 

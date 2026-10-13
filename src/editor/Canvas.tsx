@@ -42,6 +42,8 @@ interface CanvasProps {
   readonly setView: (f: (v: View) => View) => void;
   /** Space is held: plain drags pan. */
   readonly panMode: boolean;
+  /** Draw the grid lines. An editing aid only: exports never include them. */
+  readonly showGrid: boolean;
   /** A cell was just created and selected: its label should be edited. */
   readonly onCreated: () => void;
   /** The user asked to edit the selected cell's label (double-click). */
@@ -92,7 +94,7 @@ const HIT_TOLERANCE = 6;
 
 let dragCounter = 0;
 
-export const Canvas = ({ editor, view, setView, panMode, onCreated, onEditLabel, onError, svgRef }: CanvasProps) => {
+export const Canvas = ({ editor, view, setView, panMode, showGrid, onCreated, onEditLabel, onError, svgRef }: CanvasProps) => {
   const { diagram, layout, style, selection } = editor;
   const { stroke, background } = diagram.colors;
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -340,7 +342,7 @@ export const Canvas = ({ editor, view, setView, panMode, onCreated, onEditLabel,
           only shows through where the background is transparent) — exactly
           what an export will contain. */}
       <rect width="100%" height="100%" fill={background.color} fillOpacity={background.alpha} />
-      <rect width="100%" height="100%" fill="url(#grid)" />
+      {showGrid && <rect width="100%" height="100%" fill="url(#grid)" />}
       <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
         {!drag && hoverCell && !sameCell(hoverCell, armed) && <CellMark cell={hoverCell} cs={cs} zoom={view.zoom} className="cell-hover" />}
         {armed && <CellMark cell={armed} cs={cs} zoom={view.zoom} className="cell-armed" plus />}

@@ -5,7 +5,7 @@
  */
 import { useCallback, useMemo, useState } from "react";
 import { layoutDiagram, type Layout } from "../geometry/layout";
-import { DEFAULT_STYLE, type Style } from "../geometry/style";
+import { styleFor, type Style } from "../geometry/style";
 import { commit as commitHistory, initHistory, redo as redoHistory, seal as sealHistory, undo as undoHistory, type History } from "../model/history";
 import type { CellId, Diagram } from "../model/types";
 import { typeset } from "../render/tex";
@@ -36,7 +36,8 @@ export const useEditor = (initial: Diagram): Editor => {
   const [history, setHistory] = useState<History<Diagram>>(() => initHistory(initial));
   const [rawSelection, setRawSelection] = useState<ReadonlySet<CellId>>(new Set());
   const diagram = history.present;
-  const style = DEFAULT_STYLE;
+  const { fontSize, strokeWidth } = diagram;
+  const style = useMemo(() => styleFor(fontSize, strokeWidth), [fontSize, strokeWidth]);
 
   const layout = useMemo(() => layoutDiagram(diagram, style, typeset), [diagram, style]);
   const selection = useMemo(
