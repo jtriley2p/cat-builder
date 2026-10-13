@@ -20,9 +20,15 @@ export const ColorsMenu = ({ editor }: { editor: Editor }) => {
 
   return (
     <div className="popover-anchor" ref={popover.ref}>
-      <button type="button" className="colors-button" onClick={popover.toggle} aria-expanded={popover.open} title="Diagram colours">
-        <ColorsChip colors={colors} />
-        Colours
+      <button
+        type="button"
+        className="icon-button"
+        onClick={popover.toggle}
+        aria-expanded={popover.open}
+        aria-label="Colours"
+        title="Diagram colours"
+      >
+        <span className="color-wheel" aria-hidden="true" />
       </button>
       {popover.open && (
         <div className="popover panel colors-panel" role="dialog" aria-label="Colours">
@@ -46,21 +52,3 @@ export const ColorsMenu = ({ editor }: { editor: Editor }) => {
     </div>
   );
 };
-
-/** A tiny arrow drawn in the current colours, over a checkerboard. */
-const ColorsChip = ({ colors: { stroke, background } }: { colors: Colors }) => (
-  <span className="colors-chip checkerboard" aria-hidden="true">
-    <svg viewBox="0 0 22 14" width="22" height="14">
-      <rect width="22" height="14" fill={background.color} fillOpacity={background.alpha} />
-      <path
-        d="M4 7h13M13.5 3.8 17 7l-3.5 3.2"
-        fill="none"
-        stroke={stroke.color}
-        strokeOpacity={stroke.alpha}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  </span>
-);

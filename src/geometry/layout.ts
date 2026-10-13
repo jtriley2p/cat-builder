@@ -41,6 +41,7 @@ import {
   lerp,
   pointsBounds,
   rotate,
+  scale,
   sub,
   unionBounds,
   normalize,
@@ -85,6 +86,13 @@ export interface EdgeLayout {
   /** Polyline approximating what is drawn, for hit-testing and selection highlights. */
   readonly hitPath: readonly Vec[];
   readonly bounds: Bounds;
+  /**
+   * The edge's overall direction and which way its "left" side faces (unit
+   * vectors, screen coordinates), e.g. for UI that previews label sides.
+   * For a loop, the direction of travel at its far end. Null when the
+   * endpoints overlap.
+   */
+  readonly frame: { readonly along: Vec; readonly left: Vec } | null;
 }
 
 export type CellLayout = VertexLayout | EdgeLayout;
@@ -160,14 +168,33 @@ const loopCurve = (c: Vec, o: EdgeOptions, cellSize: number, style: Style): Cubi
   ];
 };
 
-/** The unclipped centre curve between two distinct points, bent and shifted per the options. */
-const edgeCurve = (a: Vec, b: Vec, o: EdgeOptions, style: Style): Cubic => {
-  const n = leftNormal(sub(b, a));
-  const a2 = addScaled(a, n, o.offset * style.offsetUnit);
-  const b2 = addScaled(b, n, o.offset * style.offsetUnit);
+/**
+ * Which way an edge's sides face. Label side, curve and offset are read in
+ * a *screen* frame rather than relative to the direction of travel: an
+ * arrow is treated as if it pointed up (when mostly vertical or exactly
+ * diagonal) or right (when mostly horizontal). So "left" is the screen's
+ * left of a vertical or diagonal arrow (lower-left of "\", upper-left of
+ * "/") and above a horizontal one; positive curve and offset go toward the
+ * "right"; and reversing an arrow never moves its label or bend.
+ *
+ * Returns +1 when the chord `d` already points that way (the frame matches
+ * the direction of travel) and -1 when it points the opposite way.
+ */
+export const frameSign = (d: Vec): 1 | -1 =>
+  Math.abs(d.y) >= Math.abs(d.x) ? (d.y < 0 ? 1 : -1) : d.x >= 0 ? 1 : -1;
+
+/**
+ * The unclipped centre curve between two distinct points, bent and shifted
+ * per the options. `side` is the edge's frame sign (see `frameSign`).
+ */
+const edgeCurve = (a: Vec, b: Vec, o: EdgeOptions, side: 1 | -1, style: Style): Cubic => {
+  // Unit normal toward the frame's right: where positive offset and curve go.
+  const right = scale(leftNormal(sub(b, a)), -side);
+  const a2 = addScaled(a, right, o.offset * style.offsetUnit);
+  const b2 = addScaled(b, right, o.offset * style.offsetUnit);
   // A quadratic whose end tangents make angle α with the chord; elevated to a cubic.
   const alpha = o.curve * style.curveStep;
-  const q = addScaled(lerp(a2, b2, 0.5), n, (dist(a, b) / 2) * Math.tan(alpha));
+  const q = addScaled(lerp(a2, b2, 0.5), right, (dist(a, b) / 2) * Math.tan(alpha));
   return fromQuadratic(a2, q, b2);
 };
 
@@ -192,9 +219,12 @@ const chevron = (tip: Vec, u: Vec, length: number, half: number): string => {
 
 const seg = (a: Vec, b: Vec) => polylinePath([a, b]);
 
-/** A ↪ hook: a semicircle starting at `start`, bulging backward, free end to the left of travel. */
-const hook = (start: Vec, u: Vec, r: number): string => {
-  const n = leftNormal(u);
+/**
+ * A ↪ hook: a semicircle starting at `start`, bulging backward, with its
+ * free end on the frame's left (above a horizontal arrow, as in ↪ and ↩).
+ */
+const hook = (start: Vec, u: Vec, r: number, side: 1 | -1): string => {
+  const n = scale(leftNormal(u), side);
   const k = 0.5523 * r; // cubic approximation of a quarter circle
   const centre = addScaled(start, n, r);
   const back = addScaled(centre, u, -r);
@@ -242,6 +272,7 @@ const placeLabel = (
   curve: Cubic,
   e: Edge,
   spread: number,
+  side: 1 | -1,
   style: Style,
   typeset: Typeset,
 ): { label: LabelLayout; t: number } | null => {
@@ -250,18 +281,19 @@ const placeLabel = (
   const table = arcTable(curve);
   const t = tAtLength(table, e.options.labelPos * table.total);
   const p = point(curve, t);
-  const n = leftNormal(tangent(curve, t));
+  // The frame's left at this point of the (possibly curved) arrow.
+  const n = scale(leftNormal(tangent(curve, t)), side);
   const w = tex.width * style.em;
   const h = (tex.ascent + tex.descent) * style.em;
   // Distance from the box centre to its edge in direction n (the box's support function).
   const support = (w / 2) * Math.abs(n.x) + (h / 2) * Math.abs(n.y);
   const away = support + style.labelGap + spread;
-  const side = e.options.labelSide;
-  const c = side === "left" ? addScaled(p, n, away) : side === "right" ? addScaled(p, n, -away) : p;
+  const where = e.options.labelSide;
+  const c = where === "left" ? addScaled(p, n, away) : where === "right" ? addScaled(p, n, -away) : p;
   return { label: { tex, box: { cx: c.x, cy: c.y, hw: w / 2, hh: h / 2 } }, t };
 };
 
-const drawArrow = (curve: Cubic, e: Edge, style: Style, typeset: Typeset): Drawn => {
+const drawArrow = (curve: Cubic, e: Edge, side: 1 | -1, style: Style, typeset: Typeset): Drawn => {
   const o = e.options;
   const spread = ((o.lines - 1) * style.lineGap) / 2;
   const headLen = style.headLength + spread * 0.6;
@@ -270,7 +302,7 @@ const drawArrow = (curve: Cubic, e: Edge, style: Style, typeset: Typeset): Drawn
 
   // Side labels clear the outermost line, including a squiggle's wave.
   const clearance = spread + (o.body === "squiggly" ? style.squiggleAmplitude : 0);
-  const placed = placeLabel(curve, e, clearance, style, typeset);
+  const placed = placeLabel(curve, e, clearance, side, style, typeset);
   const label = placed?.label ?? null;
 
   // How far each line is pulled back from the ends to meet the head/tail
@@ -324,7 +356,7 @@ const drawArrow = (curve: Cubic, e: Edge, style: Style, typeset: Typeset): Drawn
   } else if (o.tail === "hook") {
     for (const d of lineOffsets(o.lines, style.lineGap)) {
       const lc = offsetCurve(curve, d);
-      strokes.push({ d: hook(lc[0], tangent(lc, 0), style.hookRadius), dash: "solid" });
+      strokes.push({ d: hook(lc[0], tangent(lc, 0), style.hookRadius, side), dash: "solid" });
     }
   }
 
@@ -387,6 +419,7 @@ const degenerateEdge = (id: CellId, anchor: Vec): EdgeLayout => ({
   label: null,
   hitPath: [anchor],
   bounds: pointsBounds([anchor]),
+  frame: null,
 });
 
 const layoutEdge = (
@@ -402,13 +435,16 @@ const layoutEdge = (
   if (!src || !tgt) return degenerateEdge(e.id, { x: 0, y: 0 });
   const a = endpointOf(src, style);
   const b = endpointOf(tgt, style);
+  const loop = e.source === e.target;
+  // Loops always run the same way round, so for them the direction of travel
+  // is the frame: "left" is outside the loop.
+  const side = loop ? 1 : frameSign(sub(b.p, a.p));
 
-  const full =
-    e.source === e.target
-      ? loopCurve(a.p, e.options, cellSize, style)
-      : dist(a.p, b.p) < 1e-6
-        ? null
-        : edgeCurve(a.p, b.p, e.options, style);
+  const full = loop
+    ? loopCurve(a.p, e.options, cellSize, style)
+    : dist(a.p, b.p) < 1e-6
+      ? null
+      : edgeCurve(a.p, b.p, e.options, side, style);
   const curve = full && clip(full, a.shape, b.shape);
 
   // Endpoints overlap: nothing sensible to draw, but keep a usable anchor.
@@ -416,10 +452,12 @@ const layoutEdge = (
 
   const drawn =
     e.options.style === "arrow"
-      ? drawArrow(curve, e, style, typeset)
+      ? drawArrow(curve, e, side, style, typeset)
       : e.options.style === "adjunction"
         ? drawAdjunction(curve, style)
         : drawCorner(curve, e.options.style === "pullback", style);
+
+  const along = loop ? tangent(curve, 0.5) : normalize(sub(b.p, a.p));
 
   return {
     kind: "edge",
@@ -430,6 +468,7 @@ const layoutEdge = (
     label: drawn.label,
     hitPath: drawn.hitPath,
     bounds: drawn.extent,
+    frame: { along, left: scale(leftNormal(along), side) },
   };
 };
 

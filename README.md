@@ -16,7 +16,9 @@ render the same in browsers, Inkscape/Illustrator/Figma, and when rasterised.
 - Tails: none, mono `↣`, hook `↪`, maps-to `↦`
 - Bodies: solid, dashed, dotted, squiggly, none (phantom)
 - Heads: arrow, epi `↠`, none; single / double `⇒` / triple `⇛` lines
-- Curve (bend) and offset (parallel arrows); loop direction and size
+- Curve (bend) and offset (parallel arrows); loop direction and size. Sides are read on screen:
+  "left" is the left of a vertical arrow and above a horizontal one, and positive curve or offset
+  goes right (or down), whichever way the arrow points
 - Label left / right / centre (arrow broken around it) / over, positioned anywhere along the arrow
 - Adjunction `⊣`, pullback `⌟` and pushout `⌜` marks
 - Undo/redo, box selection, multi-edit of arrow options
@@ -85,6 +87,11 @@ being thrown.
 
 ### Notes
 
+- **Arrow sides.** Label side, curve and offset don't use tikz-cd's "left of the direction of
+  travel". An arrow is treated as if it pointed up (if mostly vertical or exactly diagonal) or
+  right (if mostly horizontal), so reversing an arrow never moves its label or bend. The
+  inspector's label-side icons show where the label will go on the selected arrow. Loops
+  are the exception: "left" is outside the loop. See `frameSign` in `src/geometry/layout.ts`.
 - **Colours.** Part of the diagram, not of the export settings. Each is a hex colour plus a
   separate opacity, written as `fill-opacity` (background) and group `opacity` (strokes and
   labels) rather than 8-digit hex or `rgba()`, which many SVG tools outside browsers don't

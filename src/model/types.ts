@@ -39,8 +39,14 @@ export const EDGE_STYLES = ["arrow", "adjunction", "pullback", "pushout"] as con
 export type EdgeStyle = (typeof EDGE_STYLES)[number];
 
 /**
- * Where an arrow's label sits relative to the arrow (relative to direction of
- * travel, like tikz-cd: `left` is the default, `right` is tikz-cd's `'`).
+ * Where an arrow's label sits relative to the arrow.
+ *
+ * Sides are read on screen, not relative to the direction of travel: an
+ * arrow is treated as pointing up (if mostly vertical or exactly diagonal)
+ * or right (if mostly horizontal), so `left` is the screen's left of a
+ * vertical or diagonal arrow and above a horizontal one, whichever way the
+ * arrow points.
+ * (For loops, `left` is outside the loop.) See `frameSign` in layout.ts.
  * - `centre`: on the arrow, with the arrow broken around the label.
  * - `over`: on the arrow, drawn over an unbroken arrow.
  */
@@ -76,9 +82,13 @@ export interface EdgeOptions {
   readonly body: BodyStyle;
   readonly head: HeadStyle;
   readonly lines: LineCount;
-  /** Bend, in steps of 15°; positive bends to the left of travel. For loops it scales the loop size. */
+  /**
+   * Bend, in steps of 15°; positive bends toward the right side (screen right
+   * of a vertical arrow, below a horizontal one; see `LabelSide`). For loops
+   * it scales the loop size.
+   */
   readonly curve: number;
-  /** Parallel shift, in fixed steps; positive shifts to the left of travel. */
+  /** Parallel shift, in fixed steps; positive shifts toward the right side, like `curve`. */
   readonly offset: number;
   /** Direction a loop points, in degrees in [0, 360): 0 = right, 90 = down (screen coordinates). Loops only. */
   readonly loopAngle: number;

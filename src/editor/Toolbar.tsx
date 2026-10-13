@@ -1,16 +1,19 @@
 /**
  * Top bar: history, grid spacing, view, colours, share link, export and help.
  */
-import { emptyDiagram, setCellSize } from "../model/diagram";
+import { setCellSize } from "../model/diagram";
 import { CELL_SIZE_RANGE } from "../model/types";
 import { ColorsMenu } from "./ColorsMenu";
 import { ExportMenu } from "./ExportMenu";
+import { ALT, MOD } from "./platform";
 import type { ExportSettings } from "./exportSettings";
 import { usePopover } from "./usePopover";
 import type { Editor } from "./useEditor";
 
 interface ToolbarProps {
   readonly editor: Editor;
+  /** Clear the diagram (undoable; App shows a notice). */
+  readonly onClear: () => void;
   readonly zoom: number;
   readonly onCenter: () => void;
   readonly onShare: () => void;
@@ -18,10 +21,6 @@ interface ToolbarProps {
   readonly setExportSettings: (s: ExportSettings) => void;
   readonly onExport: () => void;
 }
-
-const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-const MOD = isMac ? "⌘" : "Ctrl+";
-const ALT = isMac ? "⌥" : "Alt+";
 
 const HELP: [string, string][] = [
   ["Click an empty square twice", "New object (a double-click works too)"],
@@ -39,7 +38,7 @@ const HELP: [string, string][] = [
   [`Pinch · ${MOD}scroll`, "Zoom"],
 ];
 
-export const Toolbar = ({ editor, zoom, onCenter, onShare, exportSettings, setExportSettings, onExport }: ToolbarProps) => {
+export const Toolbar = ({ editor, onClear, zoom, onCenter, onShare, exportSettings, setExportSettings, onExport }: ToolbarProps) => {
   const help = usePopover();
   const { diagram } = editor;
 
@@ -92,15 +91,7 @@ export const Toolbar = ({ editor, zoom, onCenter, onShare, exportSettings, setEx
       </div>
 
       <div className="group">
-        <button
-          type="button"
-          onClick={() => {
-            if (diagram.cells.length > 0 && confirm("Clear the whole diagram? (You can undo this.)")) {
-              editor.commit(emptyDiagram(diagram.cellSize, diagram.colors), null, []);
-            }
-          }}
-          title="Start over"
-        >
+        <button type="button" onClick={onClear} disabled={diagram.cells.length === 0} title={`Start over (${MOD}Z undoes it)`}>
           Clear
         </button>
         <div className="popover-anchor" ref={help.ref}>

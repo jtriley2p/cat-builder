@@ -560,20 +560,22 @@ circle.hl-hover {
 
 /* ---- Colours menu ------------------------------------------------------- */
 
-.colors-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  padding: 3px 6px;
 }
 
-.colors-chip {
-  display: inline-block;
-  width: 22px;
-  height: 14px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-  line-height: 0;
+/* Hue around the rim, fading to white at the centre. */
+.color-wheel {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle closest-side, #fff, rgba(255, 255, 255, 0)),
+    conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
 .colors-panel {
@@ -584,4 +586,96 @@ circle.hl-hover {
 .panel .note {
   margin: 0;
   font-size: 12px;
+}
+
+/* ---- Notices ------------------------------------------------------------ */
+
+/* A short-lived note in the top right of the canvas (e.g. after Clear). It
+   stays put for 3s, then fades; App removes it after CLEAR_NOTICE_MS. */
+.notice {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: notice 3.5s ease forwards;
+}
+
+.notice kbd {
+  font: inherit;
+  font-weight: 600;
+}
+
+@keyframes notice {
+  0% {
+    opacity: 0;
+  }
+  4%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice {
+    animation: none;
+  }
+}
+
+/* ---- Inspector icons ---------------------------------------------------- */
+
+.icon {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The label box in label-side icons. */
+.icon .icon-box {
+  fill: currentColor;
+  fill-opacity: 0.25;
+  stroke-width: 1.2;
+}
+
+.segmented button:has(> .icon) {
+  display: grid;
+  place-items: center;
+  padding: 3px 6px;
+}
+
+/* Loop direction: arrows around an empty middle that stands in for the object. */
+.direction-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
+  grid-auto-rows: 28px;
+  gap: 3px;
+}
+
+.direction-pad button {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0;
+  border-radius: 5px;
+}
+
+.direction-pad button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.direction-middle {
+  border: 1px dashed var(--border);
+  border-radius: 5px;
 }

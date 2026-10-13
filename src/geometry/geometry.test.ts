@@ -109,8 +109,9 @@ describe("layout", () => {
   });
 
   test("a 2-cell attaches near the middles of its arrows", () => {
-    let { d, a, b, e: f } = twoObjects({ curve: 3 });
-    const g = addEdge(d, a, b, "g", { curve: -3 });
+    // Rightward arrows: negative curve bends up (toward "left"), positive down.
+    let { d, a, b, e: f } = twoObjects({ curve: -3 });
+    const g = addEdge(d, a, b, "g", { curve: 3 });
     if (!g.ok) throw 0;
     d = g.value.diagram;
     const alpha = addEdge(d, f, g.value.id, "\\alpha", { lines: 2 });
@@ -123,6 +124,63 @@ describe("layout", () => {
     // Starts at the anchor clearance around f's midpoint, pointing downward toward g.
     close(dist(al.curve![0], fl.anchor), DEFAULT_STYLE.anchorRadius, 0.05);
     expect(al.curve![3].y).toBeGreaterThan(al.curve![0].y);
+  });
+
+  test("frame: left/right and positive curve/offset are read on screen, whichever way an arrow points", () => {
+    // Objects at the centre and one cell away in each direction; one arrow out to each.
+    let d: Diagram = emptyDiagram(100);
+    const ids: Record<string, string> = {};
+    const spots = [
+      ["o", 0, 0],
+      ["up", 0, -1],
+      ["down", 0, 1],
+      ["left", -1, 0],
+      ["right", 1, 0],
+      ["downRight", 1, 1],
+      ["upRight", 1, -1],
+    ] as const;
+    for (const [name, col, row] of spots) {
+      const v = addVertex(d, col, row, name.toUpperCase());
+      if (!v.ok) throw 0;
+      d = v.value.diagram;
+      ids[name] = v.value.id;
+    }
+    const layoutWith = (to: string, o: Partial<EdgeOptions>, reversed = false) => {
+      const e = reversed ? addEdge(d, ids[to]!, ids.o!, "f", o) : addEdge(d, ids.o!, ids[to]!, "f", o);
+      if (!e.ok) throw 0;
+      return edgeLayout(e.value.diagram, e.value.id);
+    };
+    const mid = (l: EdgeLayout) => l.anchor;
+
+    for (const reversed of [false, true]) {
+      // Vertical arrows (up or down): "left" is screen-left; positive curve/offset go screen-right.
+      for (const dir of ["up", "down"]) {
+        expect(layoutWith(dir, { labelSide: "left" }, reversed).label!.box.cx).toBeLessThan(0);
+        expect(layoutWith(dir, { labelSide: "right" }, reversed).label!.box.cx).toBeGreaterThan(0);
+        expect(mid(layoutWith(dir, { curve: 2 }, reversed)).x).toBeGreaterThan(5);
+        expect(mid(layoutWith(dir, { curve: -2 }, reversed)).x).toBeLessThan(-5);
+        close(mid(layoutWith(dir, { offset: 1 }, reversed)).x, DEFAULT_STYLE.offsetUnit, 1e-6);
+      }
+      // Horizontal arrows (left or right): "left" is above; positive curve/offset go down.
+      for (const dir of ["left", "right"]) {
+        expect(layoutWith(dir, { labelSide: "left" }, reversed).label!.box.cy).toBeLessThan(0);
+        expect(layoutWith(dir, { labelSide: "right" }, reversed).label!.box.cy).toBeGreaterThan(0);
+        expect(mid(layoutWith(dir, { curve: 2 }, reversed)).y).toBeGreaterThan(5);
+        close(mid(layoutWith(dir, { offset: -1 }, reversed)).y, -DEFAULT_STYLE.offsetUnit, 1e-6);
+      }
+      // Exact diagonals count as vertical: "left" is lower-left of "\\" and upper-left of "/".
+      const side = (dir: string, labelSide: "left" | "right") => {
+        const l = layoutWith(dir, { labelSide }, reversed);
+        return { dx: Math.sign(l.label!.box.cx - l.anchor.x), dy: Math.sign(l.label!.box.cy - l.anchor.y) };
+      };
+      expect(side("downRight", "left")).toEqual({ dx: -1, dy: 1 });
+      expect(side("downRight", "right")).toEqual({ dx: 1, dy: -1 });
+      expect(side("upRight", "left")).toEqual({ dx: -1, dy: -1 });
+      expect(side("upRight", "right")).toEqual({ dx: 1, dy: 1 });
+      // The layout reports that side for UI previews.
+      const frame = layoutWith("downRight", {}, reversed).frame!;
+      expect([Math.sign(frame.left.x), Math.sign(frame.left.y)]).toEqual([-1, 1]);
+    }
   });
 
   test("loops leave and re-enter their vertex", () => {

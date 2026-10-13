@@ -19,6 +19,7 @@ import {
 } from "../model/types";
 import { typeset } from "../render/tex";
 import { Row, Segmented, Slider, type Choice } from "./controls";
+import { DirectionIcon, LabelSideIcon } from "./icons";
 import type { Editor } from "./useEditor";
 
 interface InspectorProps {
@@ -32,12 +33,16 @@ const STYLE_CHOICES: Choice<EdgeStyle>[] = [
   { value: "pullback", label: "⌟", title: "Pullback corner (at the source)" },
   { value: "pushout", label: "⌜", title: "Pushout corner (at the target)" },
 ];
-const SIDE_CHOICES: Choice<LabelSide>[] = [
-  { value: "left", label: "Left", title: "Label left of the arrow" },
-  { value: "centre", label: "Centre", title: "Label on the arrow, arrow broken around it" },
-  { value: "over", label: "Over", title: "Label drawn over the arrow" },
-  { value: "right", label: "Right", title: "Label right of the arrow" },
+/** Label sides; their icons are drawn per arrow (see `LabelSideIcon`), so only titles live here. */
+const SIDES: { readonly value: LabelSide; readonly title: string }[] = [
+  { value: "left", title: "Left of the arrow (above it, if horizontal)" },
+  { value: "centre", title: "On the arrow, with the arrow broken around it" },
+  { value: "over", title: "Over the arrow" },
+  { value: "right", title: "Right of the arrow (below it, if horizontal)" },
 ];
+
+/** Used when an arrow has no geometry (its endpoints overlap): show a horizontal arrow. */
+const FALLBACK_FRAME = { along: { x: 1, y: 0 }, left: { x: 0, y: -1 } } as const;
 const TAIL_CHOICES: Choice<TailStyle>[] = [
   { value: "none", label: "—", title: "No tail" },
   { value: "mono", label: "↣", title: "Mono tail" },
@@ -61,16 +66,41 @@ const LINE_CHOICES: Choice<LineCount>[] = [
   { value: 2, label: "⇒", title: "Double" },
   { value: 3, label: "⇛", title: "Triple" },
 ];
-const LOOP_DIRECTIONS: Choice<number>[] = [
-  { value: 270, label: "↑", title: "Up" },
-  { value: 315, label: "↗", title: "Up-right" },
-  { value: 0, label: "→", title: "Right" },
-  { value: 45, label: "↘", title: "Down-right" },
-  { value: 90, label: "↓", title: "Down" },
-  { value: 135, label: "↙", title: "Down-left" },
-  { value: 180, label: "←", title: "Left" },
-  { value: 225, label: "↖", title: "Up-left" },
+/** Loop directions laid out as a 3×3 pad around the object (null = the middle). Angles: 0 = right, 90 = down. */
+const LOOP_PAD: readonly (readonly [number, string] | null)[] = [
+  [225, "Up-left"],
+  [270, "Up"],
+  [315, "Up-right"],
+  [180, "Left"],
+  null,
+  [0, "Right"],
+  [135, "Down-left"],
+  [90, "Down"],
+  [45, "Down-right"],
 ];
+
+/** A 3×3 grid of arrows pointing outward from an empty middle (standing in for the object). */
+const DirectionPad = ({ value, onChange }: { value: number; onChange: (angle: number) => void }) => (
+  <div className="direction-pad" role="radiogroup" aria-label="Loop direction">
+    {LOOP_PAD.map(entry =>
+      entry === null ? (
+        <span key="middle" className="direction-middle" aria-hidden="true" />
+      ) : (
+        <button
+          key={entry[0]}
+          type="button"
+          role="radio"
+          aria-checked={entry[0] === value}
+          className={entry[0] === value ? "active" : ""}
+          title={entry[1]}
+          onClick={() => onChange(entry[0])}
+        >
+          <DirectionIcon angle={entry[0]} />
+        </button>
+      ),
+    )}
+  </div>
+);
 
 export const Inspector = ({ editor, labelRef }: InspectorProps) => {
   const { diagram, selection } = editor;
@@ -80,6 +110,11 @@ export const Inspector = ({ editor, labelRef }: InspectorProps) => {
   const edges = cells.filter((c): c is Edge => c.kind === "edge");
   const single = cells.length === 1 ? cells[0]! : null;
   const primary = edges[0];
+
+  // Label-side icons preview the placement on the first selected arrow, in its orientation.
+  const primaryLayout = primary ? editor.layout.byId.get(primary.id) : undefined;
+  const frame = (primaryLayout?.kind === "edge" ? primaryLayout.frame : null) ?? FALLBACK_FRAME;
+  const sideChoices: Choice<LabelSide>[] = SIDES.map(s => ({ ...s, label: <LabelSideIcon side={s.value} along={frame.along} left={frame.left} /> }));
 
   // Slider drags coalesce into one undo step per option and selection.
   const selectionKey = [...selection].join(",");
@@ -124,7 +159,7 @@ export const Inspector = ({ editor, labelRef }: InspectorProps) => {
           {primary.options.style === "arrow" && (
             <>
               <Row label="Label">
-                <Segmented choices={SIDE_CHOICES} value={primary.options.labelSide} onChange={labelSide => patch({ labelSide })} />
+                <Segmented choices={sideChoices} value={primary.options.labelSide} onChange={labelSide => patch({ labelSide })} />
               </Row>
               <Row label="Along">
                 <Slider
@@ -153,11 +188,7 @@ export const Inspector = ({ editor, labelRef }: InspectorProps) => {
           {isLoop(primary) ? (
             <>
               <Row label="Direction">
-                <Segmented
-                  choices={LOOP_DIRECTIONS}
-                  value={primary.options.loopAngle}
-                  onChange={loopAngle => patch({ loopAngle })}
-                />
+                <DirectionPad value={primary.options.loopAngle} onChange={loopAngle => patch({ loopAngle })} />
               </Row>
               <Row label="Size">
                 <Slider min={CURVE_RANGE.min} max={CURVE_RANGE.max} step={1} value={primary.options.curve} onChange={curve => patch({ curve }, "curve")} />

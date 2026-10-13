@@ -8,6 +8,7 @@ import { Canvas, type View } from "./editor/Canvas";
 import { Inspector } from "./editor/Inspector";
 import { clearHash, describeStorageError, loadAutosave, readSharedDiagram, saveAutosave, shareUrl } from "./editor/persistence";
 import { loadExportSettings, saveExportSettings, type ExportSettings } from "./editor/exportSettings";
+import { UNDO_SHORTCUT } from "./editor/platform";
 import { Toolbar } from "./editor/Toolbar";
 import { useEditor, type Editor } from "./editor/useEditor";
 import { isEmptyBounds } from "./geometry/vec";
@@ -24,6 +25,9 @@ interface Toast {
 }
 
 const TOAST_MS = 4500;
+
+/** How long the "Diagram cleared" notice stays up, including its fade-out (see .notice in index.css). */
+const CLEAR_NOTICE_MS = 3500;
 
 /**
  * Initial on-screen zoom. 100% is the size of a 1× export, which is a little
@@ -135,6 +139,32 @@ export function App() {
     };
   }, [toast]);
 
+  // --- Clear ----------------------------------------------------------------
+
+  /**
+   * The diagram state produced by the last Clear, while its notice is up.
+   * The notice only shows while that state is current, so undoing (or any
+   * other change) dismisses it at once.
+   */
+  const [cleared, setCleared] = useState<{ readonly diagram: Diagram; readonly id: number } | null>(null);
+
+  const onClear = () => {
+    const d = editor.diagram;
+    if (d.cells.length === 0) return;
+    // No confirmation: clearing is one undo away, which the notice points out.
+    const empty = emptyDiagram(d.cellSize, d.colors);
+    editor.commit(empty, null, []);
+    setCleared({ diagram: empty, id: Date.now() });
+  };
+
+  useEffect(() => {
+    if (!cleared) return;
+    const timer = setTimeout(() => setCleared(null), CLEAR_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [cleared]);
+
+  // --- Sharing --------------------------------------------------------------
+
   const onShare = async () => {
     if (editor.diagram.cells.length === 0) {
       toast("Nothing to share yet: the diagram is empty.", "error");
@@ -233,6 +263,7 @@ export function App() {
     <div className="app">
       <Toolbar
         editor={editor}
+        onClear={onClear}
         zoom={view.zoom}
         onCenter={center}
         onShare={onShare}
@@ -255,6 +286,13 @@ export function App() {
           <p className="empty-hint">Click an empty square twice to add an object, then drag from it to draw an arrow.</p>
         )}
         <Inspector editor={editor} labelRef={labelRef} />
+        {cleared && cleared.diagram === editor.diagram && (
+          <div key={cleared.id} className="notice" role="status">
+            Diagram cleared.
+            <br />
+            <kbd>{UNDO_SHORTCUT}</kbd> to undo
+          </div>
+        )}
         <div className="toasts" aria-live="polite">
           {toasts.map(t => (
             <div key={t.id} className={`toast ${t.kind}`}>
