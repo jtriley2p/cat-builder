@@ -22,7 +22,11 @@ render the same in browsers, Inkscape/Illustrator/Figma, and when rasterised.
 - Label left / right / centre (arrow broken around it) / over, positioned anywhere along the arrow
 - Adjunction `⊣`, pullback `⌟` and pushout `⌜` marks
 - Undo/redo, box selection, multi-edit of arrow options
-- Autosave to browser storage; share links (the diagram is compressed into the URL hash)
+- Autosave to browser storage; share links (Export → Link: the diagram is compressed into the
+  URL hash)
+- A floating tool bar (top right; bottom centre on screens ≤700px wide): layout (grid spacing,
+  zoom, fit and center), colours, export, undo, redo, clear (undoable, with a short notice) and
+  info
 - Diagram colours: a stroke colour (arrows and labels) and a background colour, each with an
   opacity. The canvas is drawn in them live, a checkerboard shows through wherever the
   background is transparent, and they're saved with the diagram (autosave, undo, share links).

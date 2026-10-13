@@ -4,11 +4,12 @@
  * keyboard shortcuts, export and notifications.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Canvas, type View } from "./editor/Canvas";
+import { Canvas, ZOOM_RANGE, type View } from "./editor/Canvas";
 import { Inspector } from "./editor/Inspector";
 import { clearHash, describeStorageError, loadAutosave, readSharedDiagram, saveAutosave, shareUrl } from "./editor/persistence";
 import { loadExportSettings, saveExportSettings, type ExportSettings } from "./editor/exportSettings";
 import { UNDO_SHORTCUT } from "./editor/platform";
+import { Title } from "./editor/Title";
 import { Toolbar } from "./editor/Toolbar";
 import { useEditor, type Editor } from "./editor/useEditor";
 import { isEmptyBounds } from "./geometry/vec";
@@ -34,6 +35,11 @@ const CLEAR_NOTICE_MS = 3500;
  * small for comfortable editing.
  */
 const DEFAULT_ZOOM = 1.5;
+
+/** Space kept around the diagram by "Fit and Center", in screen px (clears the floating tool bar). */
+const FIT_MARGIN = 80;
+
+const clampZoom = (z: number) => Math.min(ZOOM_RANGE.max, Math.max(ZOOM_RANGE.min, z));
 
 const useToasts = () => {
   const [toasts, setToasts] = useState<readonly Toast[]>([]);
@@ -67,7 +73,7 @@ export function App() {
   const [view, setView] = useState<View>({ x: 0, y: 0, zoom: 1 });
   const [panMode, setPanMode] = useState(false);
   const [exportSettings, setExportSettings] = useState(loadExportSettings);
-  const [centerRequest, setCenterRequest] = useState(0);
+  const [fitRequest, setFitRequest] = useState(0);
   const svgRef = useRef<SVGSVGElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
 
@@ -82,21 +88,44 @@ export function App() {
 
   // --- View -----------------------------------------------------------------
 
-  /** Reset zoom and put the diagram's centre (or the origin) in the middle of the canvas. */
-  const center = useCallback(() => {
-    const zoom = DEFAULT_ZOOM;
+  /**
+   * Fit and center: zoom so the whole diagram fits in the canvas (never
+   * beyond DEFAULT_ZOOM, so small diagrams aren't blown up) and put its
+   * centre (or the origin, when empty) in the middle.
+   */
+  const fit = useCallback(() => {
     const el = svgRef.current;
     if (!el) return;
     const { width, height } = el.getBoundingClientRect();
     const b = editor.layout.bounds;
-    const cx = isEmptyBounds(b) ? 0 : (b.minX + b.maxX) / 2;
-    const cy = isEmptyBounds(b) ? 0 : (b.minY + b.maxY) / 2;
+    if (isEmptyBounds(b)) {
+      setView({ zoom: DEFAULT_ZOOM, x: width / 2, y: height / 2 });
+      return;
+    }
+    const fitting = Math.min((width - 2 * FIT_MARGIN) / (b.maxX - b.minX), (height - 2 * FIT_MARGIN) / (b.maxY - b.minY));
+    const zoom = clampZoom(Math.min(DEFAULT_ZOOM, fitting));
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
     setView({ zoom, x: width / 2 - cx * zoom, y: height / 2 - cy * zoom });
   }, [editor.layout]);
 
-  // Centre on first paint, and whenever a new diagram is opened.
+  // Fit on first paint, and whenever a new diagram is opened.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(center, [centerRequest]);
+  useLayoutEffect(fit, [fitRequest]);
+
+  /** Set the zoom, keeping the point in the middle of the canvas where it is. */
+  const zoomTo = useCallback((target: number) => {
+    const el = svgRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const mx = width / 2;
+    const my = height / 2;
+    setView(v => {
+      const zoom = clampZoom(target);
+      const k = zoom / v.zoom;
+      return { zoom, x: mx - (mx - v.x) * k, y: my - (my - v.y) * k };
+    });
+  }, []);
 
   // --- Persistence ----------------------------------------------------------
 
@@ -128,7 +157,7 @@ export function App() {
       }
       const hadWork = editorRef.current.diagram.cells.length > 0;
       editorRef.current.open(r.value);
-      setCenterRequest(n => n + 1);
+      setFitRequest(n => n + 1);
       toast(hadWork ? "Opened the shared diagram. Undo to get your previous one back." : "Opened the shared diagram.");
     };
     void openShared();
@@ -187,7 +216,12 @@ export function App() {
   };
 
   const onExport = async () => {
-    const r = await exportImage(editor.layout, editor.style, { ...exportSettings, colors: editor.diagram.colors });
+    const { format, scale } = exportSettings;
+    if (format === "link") {
+      await onShare();
+      return;
+    }
+    const r = await exportImage(editor.layout, editor.style, { format, scale, colors: editor.diagram.colors });
     if (!r.ok) {
       toast(describeExportError(r.error), "error");
       return;
@@ -261,16 +295,6 @@ export function App() {
 
   return (
     <div className="app">
-      <Toolbar
-        editor={editor}
-        onClear={onClear}
-        zoom={view.zoom}
-        onCenter={center}
-        onShare={onShare}
-        exportSettings={exportSettings}
-        setExportSettings={updateExportSettings}
-        onExport={onExport}
-      />
       <main className="workspace">
         <Canvas
           editor={editor}
@@ -282,9 +306,20 @@ export function App() {
           onError={msg => toast(msg, "error")}
           svgRef={svgRef}
         />
+        <Title />
         {editor.diagram.cells.length === 0 && (
           <p className="empty-hint">Click an empty square twice to add an object, then drag from it to draw an arrow.</p>
         )}
+        <Toolbar
+          editor={editor}
+          onClear={onClear}
+          zoom={view.zoom}
+          onZoom={zoomTo}
+          onFit={fit}
+          exportSettings={exportSettings}
+          setExportSettings={updateExportSettings}
+          onExport={onExport}
+        />
         <Inspector editor={editor} labelRef={labelRef} />
         {cleared && cleared.diagram === editor.diagram && (
           <div key={cleared.id} className="notice" role="status">

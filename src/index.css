@@ -18,6 +18,14 @@
   --hover-soft: rgba(47, 111, 219, 0.08);
   --danger: #c4372b;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.08);
+  /* Milder, for the always-visible tool bar. */
+  --bar-shadow: 0 2px 10px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  /* Top of overlays that sit under the floating tool bar (and title). */
+  --below-toolbar: 64px;
+  /* Bottom of overlays that sit above the tool bar when it moves to the bottom (narrow screens). */
+  --above-toolbar: 70px;
+  --tooltip-bg: #1d1d1f;
+  --tooltip-fg: #ffffff;
   color-scheme: light dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
@@ -36,6 +44,9 @@
     --hover-soft: rgba(107, 156, 255, 0.1);
     --danger: #ff6b5e;
     --shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    --bar-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    --tooltip-bg: #ececef;
+    --tooltip-fg: #18181a;
   }
 }
 
@@ -104,49 +115,122 @@ button.danger {
 
 /* ---- Layout ------------------------------------------------------------- */
 
-.app {
-  display: flex;
-  flex-direction: column;
+.app,
+.workspace {
+  position: relative;
   height: 100%;
 }
 
-.workspace {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-}
+/* ---- Tool bar ------------------------------------------------------------ */
 
-/* ---- Toolbar ------------------------------------------------------------ */
-
+/* Floats over the top right of the canvas. Overlays below it (inspector,
+   notices) start at --below-toolbar. */
 .toolbar {
-  position: relative;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
+  gap: 2px;
+  padding: 4px;
   background: var(--panel);
-  z-index: 2;
-  flex-wrap: wrap;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--bar-shadow);
 }
 
-.toolbar .brand {
-  font-weight: 600;
-  letter-spacing: 0.01em;
+/* Toolbar buttons are borderless; hover and open menus are shown by fill. */
+.toolbar .icon-button {
+  border-color: transparent;
+  background: transparent;
+  width: 32px;
+  height: 32px;
+  padding: 0;
 }
 
-.toolbar .group {
+.toolbar .icon-button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--hover-soft);
+}
+
+.toolbar .icon-button[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.toolbar .divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: var(--border);
+}
+
+.tool-icon {
+  stroke-width: 1.8;
+}
+
+/* The title, top left; a card like the tool bar so it reads on any canvas
+   colour. Its lines are typeset SVGs (see Title.tsx), drawn in currentColor. */
+.title {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
+  /* Sized so the card matches the tool bar's height. */
+  padding: 6px 12px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--bar-shadow);
+  pointer-events: none;
+  user-select: none;
 }
 
-.toolbar .spacer {
-  flex: 1;
-}
+/* Tooltips: `data-tooltip` on tool bar buttons, shown below them (above,
+   when the bar sits at the bottom). Only on devices that can hover, so taps
+   on touch screens don't leave one stuck open; hidden while the button's
+   menu is open. */
+@media (hover: hover) {
+  .toolbar [data-tooltip] {
+    position: relative;
+  }
 
-.toolbar .spacing input[type="range"] {
-  width: 90px;
+  .toolbar [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-fg);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .toolbar [data-tooltip]:hover::after,
+  .toolbar [data-tooltip]:focus-visible::after {
+    opacity: 1;
+    transition-delay: 0.25s;
+  }
+
+  /* No tooltips while any of the bar's menus is open (they'd overlap it). */
+  .toolbar:has([aria-expanded="true"]) [data-tooltip]::after {
+    display: none;
+  }
 }
 
 /* ---- Popovers (export, help) -------------------------------------------- */
@@ -308,11 +392,10 @@ circle.hl-hover {
 
 .empty-hint {
   position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: var(--below-toolbar);
+  left: 12px;
   width: max-content;
-  max-width: calc(100% - 32px);
+  max-width: min(520px, calc(100% - 24px));
   margin: 0;
   padding: 6px 12px;
   text-align: center;
@@ -334,10 +417,10 @@ circle.hl-hover {
 
 .inspector {
   position: absolute;
-  top: 12px;
+  top: var(--below-toolbar);
   right: 12px;
   width: 300px;
-  max-height: calc(100% - 24px);
+  max-height: calc(100% - var(--below-toolbar) - 12px);
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -474,19 +557,6 @@ circle.hl-hover {
   border-color: var(--danger);
 }
 
-/* ---- Small screens ------------------------------------------------------ */
-
-@media (max-width: 640px) {
-  .inspector {
-    top: auto;
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-height: 50%;
-  }
-}
-
 /* ---- Export panel -------------------------------------------------------- */
 
 .export-panel {
@@ -510,11 +580,12 @@ circle.hl-hover {
 }
 
 .export-panel .actions {
-  justify-content: space-between;
   align-items: center;
 }
 
+/* Size readout on the left; the action button stays right-aligned without it (Link). */
 .export-panel .size {
+  margin-right: auto;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -563,7 +634,6 @@ circle.hl-hover {
 .icon-button {
   display: inline-grid;
   place-items: center;
-  padding: 3px 6px;
 }
 
 /* Hue around the rim, fading to white at the centre. */
@@ -578,14 +648,10 @@ circle.hl-hover {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
-.colors-panel {
+.colors-panel,
+.layout-panel {
   width: 320px;
   max-width: calc(100vw - 28px);
-}
-
-.panel .note {
-  margin: 0;
-  font-size: 12px;
 }
 
 /* ---- Notices ------------------------------------------------------------ */
@@ -594,7 +660,7 @@ circle.hl-hover {
    stays put for 3s, then fades; App removes it after CLEAR_NOTICE_MS. */
 .notice {
   position: absolute;
-  top: 12px;
+  top: var(--below-toolbar);
   right: 12px;
   padding: 8px 12px;
   background: var(--panel);
@@ -678,4 +744,58 @@ circle.hl-hover {
 .direction-middle {
   border: 1px dashed var(--border);
   border-radius: 5px;
+}
+
+/* ---- Narrow screens ------------------------------------------------------ */
+
+/* The title stays top left; the tool bar moves to the bottom centre, with
+   its menus and tooltips opening upward, centred over the bar. The inspector
+   and toasts sit above the bar; the notice takes the bar's old corner. */
+@media (max-width: 700px) {
+  .toolbar {
+    top: auto;
+    right: auto;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Popovers position against the bar itself rather than their button. */
+  .toolbar .popover-anchor {
+    position: static;
+  }
+
+  .toolbar .popover {
+    top: auto;
+    right: auto;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - var(--above-toolbar) - 24px);
+    overflow-y: auto;
+  }
+
+  .toolbar [data-tooltip]::after {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+
+  .notice {
+    top: 12px;
+  }
+
+  .inspector {
+    top: auto;
+    bottom: var(--above-toolbar);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    /* Under half the screen, so the diagram stays visible above it. */
+    max-height: min(45%, calc(100% - var(--above-toolbar) - var(--below-toolbar)));
+  }
+
+  .toasts {
+    bottom: var(--above-toolbar);
+  }
 }

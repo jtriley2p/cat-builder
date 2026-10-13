@@ -25,23 +25,19 @@ export const ColorsMenu = ({ editor }: { editor: Editor }) => {
         className="icon-button"
         onClick={popover.toggle}
         aria-expanded={popover.open}
-        aria-label="Colours"
-        title="Diagram colours"
+        aria-label="Colors"
+        data-tooltip="Colors"
       >
         <span className="color-wheel" aria-hidden="true" />
       </button>
       {popover.open && (
-        <div className="popover panel colors-panel" role="dialog" aria-label="Colours">
+        <div className="popover panel colors-panel" role="dialog" aria-label="Colors">
           <Row label="Stroke">
             <PaintInput label="Stroke" value={colors.stroke} onChange={change("stroke")} onSettle={editor.seal} />
           </Row>
           <Row label="Background">
             <PaintInput label="Background" value={colors.background} onChange={change("background")} onSettle={editor.seal} />
           </Row>
-          <p className="muted note">
-            Arrows and labels use the stroke colour. Exports look exactly like the canvas; a background at 0% exports as
-            transparent.
-          </p>
           <div className="actions">
             <button type="button" disabled={isDefault} onClick={() => editor.commit(setColors(diagram, DEFAULT_COLORS))}>
               Reset

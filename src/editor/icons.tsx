@@ -1,7 +1,9 @@
 /**
- * Small inline SVG icons for the inspector, drawn in `currentColor` (so they
- * follow button states). Styles: `.icon` in index.css.
+ * Small inline SVG icons for the inspector and toolbar, drawn in
+ * `currentColor` (so they follow button states). Styles: `.icon` and
+ * `.tool-icon` in index.css.
  */
+import type { ReactNode } from "react";
 import type { Vec } from "../geometry/vec";
 import type { LabelSide } from "../model/types";
 
@@ -88,4 +90,66 @@ export const DirectionIcon = ({ angle }: { angle: number }) => (
   <svg className="icon" viewBox="-10 -10 20 20" width={16} height={16} aria-hidden="true">
     <path transform={`rotate(${angle})`} d="M-6 0H6M2 -4L6 0L2 4" />
   </svg>
+);
+
+// ---------------------------------------------------------------------------
+// Toolbar icons (24×24, stroked; see `.tool-icon`)
+// ---------------------------------------------------------------------------
+
+const ToolIcon = ({ children }: { children: ReactNode }) => (
+  <svg className="icon tool-icon" viewBox="0 0 24 24" width={18} height={18} aria-hidden="true">
+    {children}
+  </svg>
+);
+
+/** A hooked arrow turning back to the left. */
+export const UndoIcon = () => (
+  <ToolIcon>
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+  </ToolIcon>
+);
+
+/** A hooked arrow turning forward to the right. */
+export const RedoIcon = () => (
+  <ToolIcon>
+    <path d="m15 14 5-5-5-5" />
+    <path d="M20 9H10a6 6 0 0 0 0 12h3" />
+  </ToolIcon>
+);
+
+/** A 3×3 grid: layout (grid spacing, zoom). */
+export const GridIcon = () => (
+  <ToolIcon>
+    <rect x="3.5" y="3.5" width="17" height="17" rx="2" />
+    <path d="M9.17 3.5v17M14.83 3.5v17M3.5 9.17h17M3.5 14.83h17" />
+  </ToolIcon>
+);
+
+/** An arrow rising out of a tray: export. */
+export const ExportIcon = () => (
+  <ToolIcon>
+    <path d="M12 15V3.5" />
+    <path d="m7 8.5 5-5 5 5" />
+    <path d="M4.5 14.5v4a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4" />
+  </ToolIcon>
+);
+
+/** A trash can: clear the diagram. */
+export const TrashIcon = () => (
+  <ToolIcon>
+    <path d="M4 6.5h16" />
+    <path d="M9 6.5V4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    <path d="M6 6.5l1 13a1.5 1.5 0 0 0 1.5 1.5h7a1.5 1.5 0 0 0 1.5-1.5l1-13" />
+    <path d="M10 11v6M14 11v6" />
+  </ToolIcon>
+);
+
+/** A circled "i": help. */
+export const InfoIcon = () => (
+  <ToolIcon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5.5" />
+    <path d="M12 7.6v.01" strokeWidth={2.6} />
+  </ToolIcon>
 );

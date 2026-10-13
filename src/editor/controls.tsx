@@ -95,11 +95,11 @@ export const PaintInput = ({
   onSettle?: () => void;
 }) => (
   <span className="paint">
-    <label className="swatch" title={`${label} colour`} style={{ "--swatch": paintCss(value) } as CSSProperties}>
+    <label className="swatch" title={`${label} color`} style={{ "--swatch": paintCss(value) } as CSSProperties}>
       <input
         type="color"
         value={value.color}
-        aria-label={`${label} colour`}
+        aria-label={`${label} color`}
         onChange={e => onChange({ ...value, color: e.target.value.toLowerCase() })}
         onBlur={onSettle}
       />

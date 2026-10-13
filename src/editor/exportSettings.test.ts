@@ -15,6 +15,7 @@ test("saved export settings keep valid fields and default the rest", () => {
   expect(parseExportSettings("nope")).toEqual(DEFAULT_EXPORT_SETTINGS);
   expect(parseExportSettings({ format: "png", scale: 7 })).toEqual({ format: "png", scale: DEFAULT_EXPORT_SETTINGS.scale });
   expect(parseExportSettings({ format: "gif", scale: 3 })).toEqual({ format: DEFAULT_EXPORT_SETTINGS.format, scale: 3 });
+  expect(parseExportSettings({ format: "link", scale: 2 }).format).toBe("link");
 });
 
 test("colour fields saved by earlier versions are dropped", () => {

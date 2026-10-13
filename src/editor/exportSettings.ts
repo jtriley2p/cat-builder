@@ -1,15 +1,19 @@
 /**
- * Export preferences (format and scale). They are a per-browser convenience
- * kept in localStorage: anything missing or invalid there silently falls
- * back to the defaults, field by field.
+ * Export preferences (target format and scale). They are a per-browser
+ * convenience kept in localStorage: anything missing or invalid there
+ * silently falls back to the defaults, field by field.
  *
  * Colours are not export settings: they belong to the diagram (see
  * `Colors` in model/types.ts), which the canvas shows live.
  */
 import { EXPORT_FORMATS, RASTER_SCALES, type ExportFormat } from "../render/export";
 
+/** What the export menu produces: an image file, or a share link copied to the clipboard. */
+export const EXPORT_TARGETS = [...EXPORT_FORMATS, "link"] as const;
+export type ExportTarget = ExportFormat | "link";
+
 export interface ExportSettings {
-  readonly format: ExportFormat;
+  readonly format: ExportTarget;
   /** Pixel density for PNG/WebP. */
   readonly scale: number;
 }
@@ -28,7 +32,7 @@ export const parseExportSettings = (raw: unknown): ExportSettings => {
   const r = raw as Record<string, unknown>;
   // Colour fields saved by earlier versions are ignored.
   return {
-    format: EXPORT_FORMATS.includes(r.format as ExportFormat) ? (r.format as ExportFormat) : d.format,
+    format: EXPORT_TARGETS.includes(r.format as ExportTarget) ? (r.format as ExportTarget) : d.format,
     scale: (RASTER_SCALES as readonly unknown[]).includes(r.scale) ? (r.scale as number) : d.scale,
   };
 };
