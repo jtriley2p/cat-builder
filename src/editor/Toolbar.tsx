@@ -1,18 +1,13 @@
 /**
- * Top bar: history, grid spacing, view, share link, export and help.
+ * Top bar: history, grid spacing, view, colours, share link, export and help.
  */
-import { useState } from "react";
 import { emptyDiagram, setCellSize } from "../model/diagram";
 import { CELL_SIZE_RANGE } from "../model/types";
-import { EXPORT_FORMATS, RASTER_SCALES, type ExportFormat } from "../render/export";
+import { ColorsMenu } from "./ColorsMenu";
+import { ExportMenu } from "./ExportMenu";
+import type { ExportSettings } from "./exportSettings";
+import { usePopover } from "./usePopover";
 import type { Editor } from "./useEditor";
-
-export interface ExportSettings {
-  readonly format: ExportFormat;
-  readonly scale: number;
-  readonly background: "transparent" | "white";
-  readonly ink: string;
-}
 
 interface ToolbarProps {
   readonly editor: Editor;
@@ -29,8 +24,8 @@ const MOD = isMac ? "⌘" : "Ctrl+";
 const ALT = isMac ? "⌥" : "Alt+";
 
 const HELP: [string, string][] = [
-  ["Double-click grid", "New object"],
-  ["Drag from object/arrow", "New arrow (release on empty grid to create its target, or on the same object for a loop)"],
+  ["Click an empty square twice", "New object (a double-click works too)"],
+  ["Drag from object/arrow", "New arrow (release on an empty square to create its target, or on the same object for a loop)"],
   ["Drag between arrows", "2-cell (arrow between arrows)"],
   [`${ALT}drag`, "Move objects"],
   ["Drag empty space", "Box select (⇧ to add)"],
@@ -45,10 +40,8 @@ const HELP: [string, string][] = [
 ];
 
 export const Toolbar = ({ editor, zoom, onCenter, onShare, exportSettings, setExportSettings, onExport }: ToolbarProps) => {
-  const [helpOpen, setHelpOpen] = useState(false);
+  const help = usePopover();
   const { diagram } = editor;
-  const set = (patch: Partial<ExportSettings>) => setExportSettings({ ...exportSettings, ...patch });
-  const raster = exportSettings.format !== "svg";
 
   return (
     <header className="toolbar">
@@ -63,7 +56,7 @@ export const Toolbar = ({ editor, zoom, onCenter, onShare, exportSettings, setEx
         </button>
       </div>
 
-      <label className="group" title="Distance between grid points">
+      <label className="group spacing" title="Size of the grid squares">
         <span className="muted">Spacing</span>
         <input
           type="range"
@@ -85,40 +78,17 @@ export const Toolbar = ({ editor, zoom, onCenter, onShare, exportSettings, setEx
       <div className="spacer" />
 
       <div className="group">
+        <ColorsMenu editor={editor} />
+      </div>
+
+      <div className="group">
         <button type="button" onClick={onShare} title="Copy a link that opens this diagram">
           Share link
         </button>
       </div>
 
-      <div className="group export">
-        <select value={exportSettings.format} onChange={e => set({ format: e.target.value as ExportFormat })} aria-label="Format">
-          {EXPORT_FORMATS.map(f => (
-            <option key={f} value={f}>
-              {f.toUpperCase()}
-            </option>
-          ))}
-        </select>
-        {raster && (
-          <select value={exportSettings.scale} onChange={e => set({ scale: Number(e.target.value) })} aria-label="Scale">
-            {RASTER_SCALES.map(s => (
-              <option key={s} value={s}>
-                {s}×
-              </option>
-            ))}
-          </select>
-        )}
-        <select
-          value={exportSettings.background}
-          onChange={e => set({ background: e.target.value as ExportSettings["background"] })}
-          aria-label="Background"
-        >
-          <option value="transparent">Transparent</option>
-          <option value="white">White</option>
-        </select>
-        <input type="color" value={exportSettings.ink} onChange={e => set({ ink: e.target.value })} title="Ink colour" />
-        <button type="button" className="primary" onClick={onExport}>
-          Export
-        </button>
+      <div className="group">
+        <ExportMenu editor={editor} settings={exportSettings} setSettings={setExportSettings} onExport={onExport} />
       </div>
 
       <div className="group">
@@ -126,36 +96,40 @@ export const Toolbar = ({ editor, zoom, onCenter, onShare, exportSettings, setEx
           type="button"
           onClick={() => {
             if (diagram.cells.length > 0 && confirm("Clear the whole diagram? (You can undo this.)")) {
-              editor.commit(emptyDiagram(diagram.cellSize), null, []);
+              editor.commit(emptyDiagram(diagram.cellSize, diagram.colors), null, []);
             }
           }}
           title="Start over"
         >
           Clear
         </button>
-        <button type="button" onClick={() => setHelpOpen(o => !o)} aria-expanded={helpOpen} title="Gestures and shortcuts">
-          ?
-        </button>
-      </div>
-
-      {helpOpen && (
-        <div className="help" role="dialog" aria-label="Gestures and shortcuts">
-          <table>
-            <tbody>
-              {HELP.map(([k, v]) => (
-                <tr key={k}>
-                  <th>{k}</th>
-                  <td>{v}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="muted">
-            Labels are TeX (typeset with MathJax). Your work autosaves in this browser; use <em>Share link</em> to send it
-            elsewhere.
-          </p>
+        <div className="popover-anchor" ref={help.ref}>
+          <button type="button" onClick={help.toggle} aria-expanded={help.open} title="Gestures and shortcuts">
+            ?
+          </button>
+          {help.open && <Help />}
         </div>
-      )}
+      </div>
     </header>
   );
 };
+
+/** Gesture and shortcut reference. */
+const Help = () => (
+  <div className="popover help" role="dialog" aria-label="Gestures and shortcuts">
+    <table>
+      <tbody>
+        {HELP.map(([k, v]) => (
+          <tr key={k}>
+            <th>{k}</th>
+            <td>{v}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p className="muted">
+      Labels are TeX (typeset with MathJax). Your work autosaves in this browser; use <em>Share link</em> to send it
+      elsewhere.
+    </p>
+  </div>
+);

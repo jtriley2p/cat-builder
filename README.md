@@ -11,7 +11,7 @@ render the same in browsers, Inkscape/Illustrator/Figma, and when rasterised.
 
 ## Features
 
-- Objects on an unbounded grid; labels in TeX (`\mathcal{C}`, `\mathbb{N}`, `\mathsf{Set}`, …)
+- Objects sit in the squares of an unbounded grid; labels in TeX (`\mathcal{C}`, `\mathbb{N}`, `\mathsf{Set}`, …)
 - Arrows between objects, between arrows (2-cells), and loops
 - Tails: none, mono `↣`, hook `↪`, maps-to `↦`
 - Bodies: solid, dashed, dotted, squiggly, none (phantom)
@@ -21,8 +21,12 @@ render the same in browsers, Inkscape/Illustrator/Figma, and when rasterised.
 - Adjunction `⊣`, pullback `⌟` and pushout `⌜` marks
 - Undo/redo, box selection, multi-edit of arrow options
 - Autosave to browser storage; share links (the diagram is compressed into the URL hash)
-- Export to SVG, PNG, WebP (1–4×), with a transparent or white background and any ink colour.
-  Safari can't encode WebP; it shows a message suggesting PNG instead.
+- Diagram colours: a stroke colour (arrows and labels) and a background colour, each with an
+  opacity. The canvas is drawn in them live, a checkerboard shows through wherever the
+  background is transparent, and they're saved with the diagram (autosave, undo, share links).
+- Export to SVG, PNG, WebP (1–4×) with a preview. Exports use the diagram's colours exactly, so
+  they look like the canvas (a background at 0% exports as transparent). Safari can't encode
+  WebP; it shows a message suggesting PNG instead.
 
 Diagram data is **not** embedded in exported images; use share links to reopen a diagram.
 
@@ -30,12 +34,12 @@ Diagram data is **not** embedded in exported images; use share links to reopen a
 
 | Gesture                                    | Action                                                         |
 | ------------------------------------------ | -------------------------------------------------------------- |
-| Double-click empty grid                    | New object                                                     |
-| Drag from an object or arrow               | New arrow (release on empty grid to create the target as well) |
+| Click an empty square, then click it again | New object (a double-click works too, as in quiver)            |
+| Drag from an object or arrow               | New arrow (release on an empty square to create the target)    |
 | Drag from an object back onto itself       | Loop                                                           |
 | ⌥/Alt-drag                                 | Move objects                                                   |
 | Drag empty space                           | Box select (⇧ adds)                                            |
-| Click / ⇧-click                            | Select / toggle                                                |
+| Click / ⇧-click                            | Select / toggle (anywhere in an object's square selects it)    |
 | Double-click a cell / Enter                | Edit its label                                                 |
 | Arrow keys                                 | Nudge selected objects                                         |
 | ⌫ / Delete                                 | Delete selection (and everything attached to it)               |
@@ -81,9 +85,16 @@ being thrown.
 
 ### Notes
 
+- **Colours.** Part of the diagram, not of the export settings. Each is a hex colour plus a
+  separate opacity, written as `fill-opacity` (background) and group `opacity` (strokes and
+  labels) rather than 8-digit hex or `rgba()`, which many SVG tools outside browsers don't
+  support. Group opacity also keeps overlapping strokes from looking darker where they cross.
+  The canvas renders them the same way. Only the editor's overlays (selection, hover) use the
+  UI theme.
 - **Bundle size.** MathJax plus the TeX font is the bulk of the bundle: about 2 MB minified,
   ~750 KB gzipped. Glyph paths are what make the exported SVGs portable, and that's the cost.
 - **TeX packages.** `base`, `ams`, `color`, `boldsymbol`. `\newcommand` is deliberately off,
   because definitions would leak between labels.
 - **Share links.** `#d=` + base64url(deflate-raw(JSON)). The format is versioned
-  (`FORMAT_VERSION` in `src/model/codec.ts`).
+  (`FORMAT_VERSION` in `src/model/codec.ts`). Colours are an optional trailing field, left out
+  when they're the defaults, so links made before colours existed still open.

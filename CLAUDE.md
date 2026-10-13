@@ -9,6 +9,8 @@ the architecture. Key constraints:
   or MathJax's ~1 MB default font gets bundled.
 - Diagram data is never embedded in exported images; persistence is localStorage autosave plus
   share links (`#d=` URL hash). Bump `FORMAT_VERSION` in `src/model/codec.ts` on breaking changes.
+- Colours (stroke and background, each with opacity) belong to the `Diagram`, not to the export
+  settings. The canvas draws in them live and exports use them unchanged (WYSIWYG).
 - `Diagram.cells` is topologically ordered (edges after their endpoints); keep that invariant.
 - Pure modules (model/, geometry/, render/svg.ts, editor/hit.ts) have `bun test` coverage; keep
   failures as enumerated `Result` errors rather than throws.

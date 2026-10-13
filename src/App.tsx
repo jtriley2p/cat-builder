@@ -7,7 +7,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Canvas, type View } from "./editor/Canvas";
 import { Inspector } from "./editor/Inspector";
 import { clearHash, describeStorageError, loadAutosave, readSharedDiagram, saveAutosave, shareUrl } from "./editor/persistence";
-import { Toolbar, type ExportSettings } from "./editor/Toolbar";
+import { loadExportSettings, saveExportSettings, type ExportSettings } from "./editor/exportSettings";
+import { Toolbar } from "./editor/Toolbar";
 import { useEditor, type Editor } from "./editor/useEditor";
 import { isEmptyBounds } from "./geometry/vec";
 import { describeDecodeError } from "./model/codec";
@@ -50,19 +51,6 @@ const restore = (): { diagram: Diagram; problem: string | null } => {
       ? describeStorageError(r.error)
       : `Couldn't restore your autosaved diagram. ${describeDecodeError(r.error)}`;
   return { diagram: emptyDiagram(), problem };
-};
-
-// Export preferences are a per-browser convenience; failures just mean defaults.
-const EXPORT_SETTINGS_KEY = "cat-builder:export";
-const DEFAULT_EXPORT: ExportSettings = { format: "svg", scale: 2, background: "transparent", ink: "#000000" };
-
-const loadExportSettings = (): ExportSettings => {
-  try {
-    const raw = localStorage.getItem(EXPORT_SETTINGS_KEY);
-    return raw ? { ...DEFAULT_EXPORT, ...JSON.parse(raw) } : DEFAULT_EXPORT;
-  } catch {
-    return DEFAULT_EXPORT;
-  }
 };
 
 const isTypingTarget = (t: EventTarget | null) =>
@@ -165,20 +153,11 @@ export function App() {
 
   const updateExportSettings = (s: ExportSettings) => {
     setExportSettings(s);
-    try {
-      localStorage.setItem(EXPORT_SETTINGS_KEY, JSON.stringify(s));
-    } catch {
-      // Not worth bothering the user about: the settings just won't persist.
-    }
+    saveExportSettings(s);
   };
 
   const onExport = async () => {
-    const r = await exportImage(editor.layout, editor.style, {
-      format: exportSettings.format,
-      scale: exportSettings.scale,
-      background: exportSettings.background === "white" ? "#ffffff" : null,
-      ink: exportSettings.ink,
-    });
+    const r = await exportImage(editor.layout, editor.style, { ...exportSettings, colors: editor.diagram.colors });
     if (!r.ok) {
       toast(describeExportError(r.error), "error");
       return;
@@ -273,7 +252,7 @@ export function App() {
           svgRef={svgRef}
         />
         {editor.diagram.cells.length === 0 && (
-          <p className="empty-hint">Double-click to add an object, then drag from it to draw an arrow.</p>
+          <p className="empty-hint">Click an empty square twice to add an object, then drag from it to draw an arrow.</p>
         )}
         <Inspector editor={editor} labelRef={labelRef} />
         <div className="toasts" aria-live="polite">

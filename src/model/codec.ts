@@ -3,21 +3,27 @@
  *
  * Compact form (kept small because it ends up in URLs):
  *
- *     [version, cellSize, cells]
+ *     [version, cellSize, cells, colors?]
  *     vertex: [col, row, label]
  *     edge:   [sourceIndex, targetIndex, label, options]
+ *     colors: { s?: [hex, alpha], b?: [hex, alpha] }   (stroke, background)
  *
  * Endpoints are indices into `cells` and must point *backwards* (the
  * topological-order invariant). `options` only lists values that differ from
- * `DEFAULT_EDGE_OPTIONS`, using the short keys in `OPTION_KEYS`.
+ * `DEFAULT_EDGE_OPTIONS`, using the short keys in `OPTION_KEYS`. Likewise
+ * `colors` only lists colours that differ from `DEFAULT_COLORS`, and is
+ * omitted entirely when both are default — so data written before colours
+ * existed (three elements) is still valid.
  *
  * Share links are `#d=` + base64url(deflate-raw(JSON(compact))).
  */
 import { err, ok, type Result } from "../lib/result";
 import { normalizeOptions } from "./diagram";
+import { parsePaint, samePaint, type Paint } from "./paint";
 import {
   BODY_STYLES,
   CELL_SIZE_RANGE,
+  DEFAULT_COLORS,
   DEFAULT_EDGE_OPTIONS,
   EDGE_STYLES,
   HEAD_STYLES,
@@ -26,6 +32,7 @@ import {
   TAIL_STYLES,
   type Cell,
   type CellId,
+  type Colors,
   type Diagram,
   type EdgeOptions,
 } from "./types";
@@ -111,6 +118,34 @@ const decodeOptions = (raw: unknown, where: string): Result<EdgeOptions, DecodeE
 };
 
 // ---------------------------------------------------------------------------
+// Colors <-> short-key objects
+// ---------------------------------------------------------------------------
+
+const COLOR_KEYS = { stroke: "s", background: "b" } as const satisfies Record<keyof Colors, string>;
+const colorKeys = Object.keys(COLOR_KEYS) as (keyof Colors)[];
+
+/** Non-default colours as `{ s: [hex, alpha], … }`, or null when all are default. */
+const encodeColors = (c: Colors): Record<string, readonly [string, number]> | null => {
+  const entries = colorKeys
+    .filter(k => !samePaint(c[k], DEFAULT_COLORS[k]))
+    .map(k => [COLOR_KEYS[k], [c[k].color, Math.round(c[k].alpha * 1000) / 1000]] as const);
+  return entries.length === 0 ? null : Object.fromEntries(entries);
+};
+
+const decodeColors = (raw: unknown): Result<Colors, DecodeError> => {
+  if (!isRecord(raw)) return invalid("colours must be an object");
+  const out: Record<string, Paint> = { ...DEFAULT_COLORS };
+  for (const k of colorKeys) {
+    const stored = raw[COLOR_KEYS[k]];
+    if (stored === undefined) continue;
+    const paint = Array.isArray(stored) && stored.length === 2 ? parsePaint({ color: stored[0], alpha: stored[1] }) : null;
+    if (!paint) return invalid(`bad ${k} colour`);
+    out[k] = paint;
+  }
+  return ok(out as unknown as Colors);
+};
+
+// ---------------------------------------------------------------------------
 // Diagram <-> compact form
 // ---------------------------------------------------------------------------
 
@@ -121,7 +156,8 @@ export const toCompact = (d: Diagram): unknown[] => {
       ? [c.col, c.row, c.label]
       : [index.get(c.source), index.get(c.target), c.label, encodeOptions(c.options)],
   );
-  return [FORMAT_VERSION, d.cellSize, cells];
+  const colors = encodeColors(d.colors);
+  return colors ? [FORMAT_VERSION, d.cellSize, cells, colors] : [FORMAT_VERSION, d.cellSize, cells];
 };
 
 const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -129,12 +165,14 @@ const isInt = (x: unknown): x is number => Number.isInteger(x);
 const invalid = (detail: string) => err<DecodeError>({ kind: "invalid-structure", detail });
 
 export const fromCompact = (raw: unknown): Result<Diagram, DecodeError> => {
-  if (!Array.isArray(raw) || raw.length !== 3) return invalid("expected [version, cellSize, cells]");
-  const [version, cellSize, rawCells] = raw;
+  if (!Array.isArray(raw) || (raw.length !== 3 && raw.length !== 4)) return invalid("expected [version, cellSize, cells, colors?]");
+  const [version, cellSize, rawCells, rawColors] = raw;
   if (version !== FORMAT_VERSION) return err({ kind: "unsupported-version", version });
   if (typeof cellSize !== "number" || cellSize < CELL_SIZE_RANGE.min || cellSize > CELL_SIZE_RANGE.max)
     return invalid("cell size out of range");
   if (!Array.isArray(rawCells)) return invalid("cells must be a list");
+  const colors = rawColors === undefined ? ok(DEFAULT_COLORS) : decodeColors(rawColors);
+  if (!colors.ok) return colors;
 
   const cells: Cell[] = [];
   const occupied = new Set<string>();
@@ -162,7 +200,7 @@ export const fromCompact = (raw: unknown): Result<Diagram, DecodeError> => {
       return invalid(`${where} has the wrong shape`);
     }
   }
-  return ok({ cellSize, cells, nextId: cells.length + 1 });
+  return ok({ cellSize, colors: colors.value, cells, nextId: cells.length + 1 });
 };
 
 // ---------------------------------------------------------------------------

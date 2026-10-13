@@ -12,6 +12,8 @@
  * `diagram.ts` preserve it; the codec validates it on load.
  */
 
+import type { Paint } from "./paint";
+
 /** Session-local identifier of a cell. Not part of the serialized form. */
 export type CellId = string;
 
@@ -94,9 +96,26 @@ export interface Edge {
 
 export type Cell = Vertex | Edge;
 
+/**
+ * The diagram's colours. The editor draws the canvas in them live, and
+ * exports use them as they are, so what you see is what you export.
+ */
+export interface Colors {
+  /** Arrows and labels (uncoloured TeX). Its opacity fades the drawing as a whole. */
+  readonly stroke: Paint;
+  /** Fill behind everything; opacity 0 exports a transparent image. */
+  readonly background: Paint;
+}
+
+export const DEFAULT_COLORS: Colors = {
+  stroke: { color: "#000000", alpha: 1 },
+  background: { color: "#ffffff", alpha: 1 },
+};
+
 export interface Diagram {
   /** Distance between adjacent grid points, in px. */
   readonly cellSize: number;
+  readonly colors: Colors;
   /** Cells in topological order (see module docs). */
   readonly cells: readonly Cell[];
   /** Counter for generating fresh, session-unique cell ids. */

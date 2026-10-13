@@ -1,7 +1,7 @@
 /*
- * cat-builder styles. Plain CSS with custom properties; light and dark themes
- * follow the OS setting. The diagram itself is drawn in var(--ink); exports
- * use their own ink colour, independent of the theme.
+ * cat-builder styles. Plain CSS with custom properties; the app chrome
+ * (toolbar, panels) follows the OS light/dark setting. The canvas does not:
+ * it is drawn in the diagram's own colours, exactly as it will export.
  */
 :root {
   --bg: #fbfbfa;
@@ -9,8 +9,10 @@
   --text: #1d1d1f;
   --muted: #6e6e73;
   --border: #dcdcdf;
-  --ink: #111111;
-  --grid: #c9c9ce;
+  /* The transparency checkerboard stays light in both themes (as in image
+     editors), so the default black-on-transparent export stays visible. */
+  --check-a: #ffffff;
+  --check-b: #e2e2e6;
   --accent: #2f6fdb;
   --accent-soft: rgba(47, 111, 219, 0.16);
   --hover-soft: rgba(47, 111, 219, 0.08);
@@ -29,8 +31,6 @@
     --text: #ececef;
     --muted: #9a9aa2;
     --border: #3a3a3f;
-    --ink: #ececef;
-    --grid: #444449;
     --accent: #6b9cff;
     --accent-soft: rgba(107, 156, 255, 0.22);
     --hover-soft: rgba(107, 156, 255, 0.1);
@@ -145,30 +145,31 @@ button.danger {
   flex: 1;
 }
 
-.toolbar input[type="range"] {
+.toolbar .spacing input[type="range"] {
   width: 90px;
 }
 
-.toolbar input[type="color"] {
-  width: 30px;
-  height: 28px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel);
-  cursor: pointer;
+/* ---- Popovers (export, help) -------------------------------------------- */
+
+.popover-anchor {
+  position: relative;
 }
 
-.help {
+.popover {
   position: absolute;
   top: calc(100% + 8px);
-  right: 14px;
-  max-width: min(520px, calc(100vw - 28px));
+  right: 0;
+  z-index: 3;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow);
-  padding: 12px 16px;
+  padding: 12px 14px;
+}
+
+.help {
+  width: max-content;
+  max-width: min(520px, calc(100vw - 28px));
 }
 
 .help table {
@@ -205,19 +206,38 @@ button.danger {
   -webkit-user-select: none;
 }
 
-.canvas .diagram {
-  color: var(--ink);
+/* The canvas is drawn in the diagram's own colours (see Canvas.tsx); only
+   editor overlays (selection, hover, previews) use the theme accent. */
+.grid-line {
+  fill: none;
+  stroke-width: 1;
+  stroke-opacity: 0.14;
 }
 
-.grid-dot {
-  fill: var(--grid);
+/* Grid squares: hovered (empty), armed for creation / a new arrow's target. */
+.cell-hover rect {
+  fill: var(--hover-soft);
+}
+
+.cell-armed rect {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.cell-armed path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .point-marker {
   fill: none;
-  stroke: var(--muted);
   stroke-width: 1;
   stroke-dasharray: 2 2;
+  stroke-opacity: 0.5;
 }
 
 .hl-selected rect,
@@ -288,15 +308,29 @@ circle.hl-hover {
 
 .empty-hint {
   position: absolute;
-  inset: 0;
-  margin: auto;
-  height: fit-content;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 6px 12px;
   text-align: center;
   color: var(--muted);
+  /* A pill, so it reads on whatever background colour the canvas has. */
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
   pointer-events: none;
 }
 
-/* ---- Inspector ---------------------------------------------------------- */
+/* ---- Panels (inspector, export) ---------------------------------------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 .inspector {
   position: absolute;
@@ -310,27 +344,24 @@ circle.hl-hover {
   border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .inspector header {
   font-weight: 600;
 }
 
-.inspector .field {
+.panel .field {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.inspector .field > span {
+.panel .field > span {
   color: var(--muted);
   font-size: 12px;
 }
 
-.inspector .field input {
+.panel .field input {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   padding: 6px 8px;
@@ -339,22 +370,25 @@ circle.hl-hover {
   background: var(--bg);
 }
 
-.inspector .field input.invalid {
+.panel .field input.invalid {
   border-color: var(--danger);
 }
 
-.inspector .error {
+.panel .error,
+.panel .warning {
+  margin: 0;
+  font-size: 12px;
   color: var(--danger);
 }
 
-.inspector .row {
+.panel .row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.inspector .row-label {
-  width: 62px;
+.panel .row-label {
+  width: 72px;
   flex-shrink: 0;
   color: var(--muted);
   font-size: 12px;
@@ -399,13 +433,13 @@ circle.hl-hover {
 }
 
 .slider output {
-  width: 36px;
+  width: 40px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
-.inspector .actions {
+.panel .actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -451,4 +485,103 @@ circle.hl-hover {
     width: auto;
     max-height: 50%;
   }
+}
+
+/* ---- Export panel -------------------------------------------------------- */
+
+.export-panel {
+  width: 340px;
+  max-width: calc(100vw - 28px);
+}
+
+.export-panel .preview {
+  height: 160px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.export-panel .preview img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.export-panel .actions {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.export-panel .size {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Transparency checkerboard, used behind the preview and colour swatches. */
+.checkerboard {
+  background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0 / 14px 14px;
+}
+
+.paint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.swatch {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background:
+    linear-gradient(var(--swatch), var(--swatch)),
+    repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0 / 8px 8px;
+}
+
+/* The native picker stays clickable but invisible: the swatch shows the colour with its opacity. */
+.swatch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ---- Colours menu ------------------------------------------------------- */
+
+.colors-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.colors-chip {
+  display: inline-block;
+  width: 22px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.colors-panel {
+  width: 320px;
+  max-width: calc(100vw - 28px);
+}
+
+.panel .note {
+  margin: 0;
+  font-size: 12px;
 }

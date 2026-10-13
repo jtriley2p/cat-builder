@@ -6,7 +6,8 @@
 import type { Layout } from "../geometry/layout";
 import type { Style } from "../geometry/style";
 import { err, ok, type Result } from "../lib/result";
-import { standaloneSvg } from "./svg";
+import type { Colors } from "../model/types";
+import { standaloneSvg, type StandaloneSvg } from "./svg";
 
 export const EXPORT_FORMATS = ["svg", "png", "webp"] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -17,9 +18,8 @@ export interface ExportOptions {
   readonly format: ExportFormat;
   /** Pixel density multiplier for PNG/WebP (ignored for SVG). */
   readonly scale: number;
-  /** CSS colour, or null for transparent. */
-  readonly background: string | null;
-  readonly ink: string;
+  /** The diagram's colours, used as they are. */
+  readonly colors: Colors;
 }
 
 export type ExportError =
@@ -65,13 +65,20 @@ export interface ExportedImage {
   readonly filename: string;
 }
 
+/**
+ * The SVG document an export is made from (also used for the export
+ * preview), or null for an empty diagram.
+ */
+export const exportSvg = (layout: Layout, style: Style, colors: Colors): StandaloneSvg | null =>
+  standaloneSvg(layout, style, { padding: PADDING, stroke: colors.stroke, background: colors.background });
+
 export const exportImage = async (
   layout: Layout,
   style: Style,
   opts: ExportOptions,
 ): Promise<Result<ExportedImage, ExportError>> => {
   if (opts.format === "webp" && !canEncodeWebp()) return err("webp-unsupported");
-  const svg = standaloneSvg(layout, style, { padding: PADDING, background: opts.background, ink: opts.ink });
+  const svg = exportSvg(layout, style, opts.colors);
   if (!svg) return err("empty-diagram");
 
   if (opts.format === "svg") {

@@ -4,7 +4,6 @@
  * selected edges (handy for e.g. "make these dashed"); the controls show the
  * values of the first selected edge.
  */
-import type { ReactNode } from "react";
 import { getCell, isLoop, removeCells, reverseEdges, setLabel, updateEdgeOptions } from "../model/diagram";
 import {
   CURVE_RANGE,
@@ -19,17 +18,12 @@ import {
   type TailStyle,
 } from "../model/types";
 import { typeset } from "../render/tex";
+import { Row, Segmented, Slider, type Choice } from "./controls";
 import type { Editor } from "./useEditor";
 
 interface InspectorProps {
   readonly editor: Editor;
   readonly labelRef: React.RefObject<HTMLInputElement | null>;
-}
-
-interface Choice<T> {
-  readonly value: T;
-  readonly label: ReactNode;
-  readonly title: string;
 }
 
 const STYLE_CHOICES: Choice<EdgeStyle>[] = [
@@ -78,54 +72,6 @@ const LOOP_DIRECTIONS: Choice<number>[] = [
   { value: 225, label: "↖", title: "Up-left" },
 ];
 
-function Segmented<T>({ choices, value, onChange }: { choices: Choice<T>[]; value: T; onChange: (v: T) => void }) {
-  return (
-    <div className="segmented" role="radiogroup">
-      {choices.map(c => (
-        <button
-          key={String(c.value)}
-          type="button"
-          role="radio"
-          aria-checked={c.value === value}
-          className={c.value === value ? "active" : ""}
-          title={c.title}
-          onClick={() => onChange(c.value)}
-        >
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-const Row = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="row">
-    <span className="row-label">{label}</span>
-    {children}
-  </div>
-);
-
-const Slider = ({
-  min,
-  max,
-  step,
-  value,
-  onChange,
-  format = String,
-}: {
-  min: number;
-  max: number;
-  step: number;
-  value: number;
-  onChange: (v: number) => void;
-  format?: (v: number) => string;
-}) => (
-  <span className="slider">
-    <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))} />
-    <output>{format(value)}</output>
-  </span>
-);
-
 export const Inspector = ({ editor, labelRef }: InspectorProps) => {
   const { diagram, selection } = editor;
   if (selection.size === 0) return null;
@@ -145,7 +91,7 @@ export const Inspector = ({ editor, labelRef }: InspectorProps) => {
   const labelError = labelled ? (typeset(labelled.label, labelled.kind === "edge" ? "script" : "normal")?.error ?? null) : null;
 
   return (
-    <aside className="inspector">
+    <aside className="inspector panel">
       <header>
         {single ? (single.kind === "vertex" ? "Object" : isLoop(single) ? "Loop" : "Arrow") : `${cells.length} selected`}
       </header>

@@ -9,6 +9,7 @@ import { fmt } from "../geometry/bezier";
 import type { CellLayout, LabelLayout, Layout, Stroke } from "../geometry/layout";
 import type { Style } from "../geometry/style";
 import { isEmptyBounds, type Bounds } from "../geometry/vec";
+import { fmtAlpha, isTransparent, type Paint } from "../model/paint";
 
 /** Embed a typeset label: MathJax's own <svg>, stretched onto the label box. */
 const labelMarkup = ({ tex, box }: LabelLayout): string =>
@@ -58,10 +59,10 @@ const attrs = (o: Record<string, string>) =>
 export interface StandaloneOptions {
   /** Margin around the drawing, in px. */
   readonly padding: number;
-  /** CSS colour, or null for a transparent background. */
-  readonly background: string | null;
+  /** Background fill; omitted entirely when fully transparent. */
+  readonly background: Paint;
   /** Colour of every stroke and (uncoloured) glyph. */
-  readonly ink: string;
+  readonly stroke: Paint;
 }
 
 export interface StandaloneSvg {
@@ -80,14 +81,19 @@ export const standaloneSvg = (layout: Layout, style: Style, opts: StandaloneOpti
   const y = Math.floor(b.minY - opts.padding);
   const width = Math.ceil(b.maxX + opts.padding) - x;
   const height = Math.ceil(b.maxY + opts.padding) - y;
-  const background = opts.background
-    ? `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${opts.background}"/>`
-    : "";
+  const { background: bg, stroke } = opts;
+  const background = isTransparent(bg)
+    ? ""
+    : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${bg.color}"${bg.alpha < 1 ? ` fill-opacity="${fmtAlpha(bg.alpha)}"` : ""}/>`;
+  // Stroke alpha is applied as *group* opacity: the drawing is composited
+  // once and then faded, so places where strokes overlap (arrowheads on
+  // double lines, crossing arrows) don't show up darker.
+  const inkOpacity = stroke.alpha < 1 ? ` opacity="${fmtAlpha(stroke.alpha)}"` : "";
   const body = layout.cells.map(c => cellMarkup(c, style)).join("");
   const markup =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${x} ${y} ${width} ${height}">` +
     background +
-    `<g color="${opts.ink}"${attrs(strokeAttributes(style))}>${body}</g>` +
+    `<g color="${stroke.color}"${inkOpacity}${attrs(strokeAttributes(style))}>${body}</g>` +
     `</svg>`;
   return { markup, width, height };
 };

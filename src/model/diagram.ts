@@ -6,18 +6,21 @@ import { err, ok, type Result } from "../lib/result";
 import {
   CELL_SIZE_RANGE,
   CURVE_RANGE,
+  DEFAULT_COLORS,
   DEFAULT_EDGE_OPTIONS,
   OFFSET_RANGE,
   type Cell,
   type CellId,
+  type Colors,
   type Diagram,
   type Edge,
   type EdgeOptions,
   type Vertex,
 } from "./types";
 
-export const emptyDiagram = (cellSize: number = CELL_SIZE_RANGE.default): Diagram => ({
+export const emptyDiagram = (cellSize: number = CELL_SIZE_RANGE.default, colors: Colors = DEFAULT_COLORS): Diagram => ({
   cellSize,
+  colors,
   cells: [],
   nextId: 1,
 });
@@ -117,6 +120,8 @@ export const setCellSize = (d: Diagram, cellSize: number): Diagram => ({
   ...d,
   cellSize: clamp(Math.round(cellSize), CELL_SIZE_RANGE.min, CELL_SIZE_RANGE.max),
 });
+
+export const setColors = (d: Diagram, patch: Partial<Colors>): Diagram => ({ ...d, colors: { ...d.colors, ...patch } });
 
 export type MoveError = "occupied";
 

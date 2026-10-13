@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { decodeJson, decodeLinkHash, encodeJson, encodeLinkHash, fromCompact, toCompact } from "./codec";
-import { addEdge, addVertex, emptyDiagram } from "./diagram";
-import type { Diagram } from "./types";
+import { addEdge, addVertex, emptyDiagram, setColors } from "./diagram";
+import { DEFAULT_COLORS, type Diagram } from "./types";
 
 const build = (): Diagram => {
   let d = emptyDiagram(120);
@@ -47,6 +47,32 @@ describe("codec", () => {
     if (back.ok) expect(content(back.value)).toEqual(content(d));
   });
 
+  test("colours round-trip, and default colours are left out", async () => {
+    const plain = build();
+    expect(toCompact(plain).length).toBe(3);
+
+    const colored = setColors(plain, {
+      stroke: { color: "#aa0000", alpha: 0.6 },
+      background: { color: "#224466", alpha: 0 },
+    });
+    const compact = toCompact(colored);
+    expect(compact[3]).toEqual({ s: ["#aa0000", 0.6], b: ["#224466", 0] });
+
+    const viaJson = decodeJson(encodeJson(colored));
+    expect(viaJson.ok && viaJson.value.colors).toEqual(colored.colors);
+    const viaLink = await decodeLinkHash(await encodeLinkHash(colored));
+    expect(viaLink.ok && viaLink.value.colors).toEqual(colored.colors);
+
+    // Only the changed colour is stored.
+    const strokeOnly = setColors(plain, { stroke: { color: "#123456", alpha: 1 } });
+    expect(toCompact(strokeOnly)[3]).toEqual({ s: ["#123456", 1] });
+  });
+
+  test("data from before colours existed decodes with the defaults", () => {
+    const r = fromCompact([1, 100, [[0, 0, "A"]]]);
+    expect(r.ok && r.value.colors).toEqual(DEFAULT_COLORS);
+  });
+
   test("damaged links are reported, not thrown", async () => {
     expect(await decodeLinkHash("#d=!!!")).toEqual({ ok: false, error: { kind: "malformed-link" } });
     expect(await decodeLinkHash("#d=AAAA")).toEqual({ ok: false, error: { kind: "malformed-link" } });
@@ -64,5 +90,8 @@ describe("codec", () => {
     expect(bad([1, 100, [[0, 0, "A"], [0, 0, "", { s: "wiggle" }]]])).toBe(true); // unknown style
     expect(bad([1, 100, [[0, 0, "A"], [1, 0, "B"], [0, 1, "f", {}], [2, 2, "", {}]]])).toBe(true); // loop on an arrow
     expect(bad([1, 9999, []])).toBe(true); // cell size out of range
+    expect(bad([1, 100, [], { s: ["red", 1] }])).toBe(true); // not a hex colour
+    expect(bad([1, 100, [], { b: ["#ffffff"] }])).toBe(true); // missing alpha
+    expect(bad([1, 100, [], []])).toBe(true); // colours must be an object
   });
 });

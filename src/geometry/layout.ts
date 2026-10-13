@@ -95,6 +95,8 @@ export interface Layout {
   readonly byId: ReadonlyMap<CellId, CellLayout>;
   /** Extent of everything drawn; empty bounds for an empty diagram. */
   readonly bounds: Bounds;
+  /** Grid spacing the layout was made with: each vertex owns the cellSize × cellSize square around its centre. */
+  readonly cellSize: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -444,5 +446,5 @@ export const layoutDiagram = (d: Diagram, style: Style, typeset: Typeset): Layou
     cells.push(l);
   }
   const bounds = cells.reduce<Bounds>((acc, c) => unionBounds(acc, c.bounds), pointsBounds([]));
-  return { cells, byId, bounds };
+  return { cells, byId, bounds, cellSize: d.cellSize };
 };

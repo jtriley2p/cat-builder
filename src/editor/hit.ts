@@ -16,31 +16,39 @@ export interface Hit {
 const MIN_VERTEX_HALF = 12;
 
 /**
- * The cell under `p`, or null. Vertices win over edges (they are the usual
- * drag targets); among edges the nearest one within `tolerance` wins, with a
- * click on an edge's label counting as distance zero.
+ * The cell under `p`, or null. In order of precedence:
+ *
+ * 1. a vertex's label (the usual drag target);
+ * 2. the nearest edge within `tolerance` (a click on an edge's label counts
+ *    as distance zero), so arrows stay selectable where they pass close to
+ *    a vertex;
+ * 3. the rest of a vertex's grid square: each object owns its whole cell,
+ *    which keeps small labels (•) and unlabelled points easy to grab.
  */
-export const hitTest = (layout: Layout, p: Vec, tolerance: number, exclude?: CellId): Hit | null => {
-  for (let i = layout.cells.length - 1; i >= 0; i--) {
-    const c = layout.cells[i]!;
-    if (c.kind !== "vertex" || c.id === exclude) continue;
-    const hw = Math.max(c.label?.box.hw ?? 0, MIN_VERTEX_HALF);
-    const hh = Math.max(c.label?.box.hh ?? 0, MIN_VERTEX_HALF);
-    const cy = c.label?.box.cy ?? c.center.y;
-    if (inBox({ cx: c.center.x, cy, hw, hh }, p)) return { kind: "vertex", id: c.id };
+export const hitTest = (layout: Layout, p: Vec, tolerance: number): Hit | null => {
+  const vertices = layout.cells.filter(c => c.kind === "vertex");
+  for (const v of vertices) {
+    const hw = Math.max(v.label?.box.hw ?? 0, MIN_VERTEX_HALF);
+    const hh = Math.max(v.label?.box.hh ?? 0, MIN_VERTEX_HALF);
+    const cy = v.label?.box.cy ?? v.center.y;
+    if (inBox({ cx: v.center.x, cy, hw, hh }, p)) return { kind: "vertex", id: v.id };
   }
 
   let best: Hit | null = null;
   let bestDist = tolerance;
   for (const c of layout.cells) {
-    if (c.kind !== "edge" || c.id === exclude) continue;
+    if (c.kind !== "edge") continue;
     const d = c.label && inBox(c.label.box, p, 2) ? 0 : polylineDistance(c.hitPath, p);
     if (d <= bestDist) {
       best = { kind: "edge", id: c.id };
       bestDist = d;
     }
   }
-  return best;
+  if (best) return best;
+
+  const half = layout.cellSize / 2;
+  const owner = vertices.find(v => inBox({ cx: v.center.x, cy: v.center.y, hw: half, hh: half }, p));
+  return owner ? { kind: "vertex", id: owner.id } : null;
 };
 
 const polylineDistance = (pts: readonly Vec[], p: Vec): number => {
