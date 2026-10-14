@@ -3,11 +3,23 @@
 A lightweight Category Theory diagram editor. Diagrams export to SVG, PNG, WEBP, and embedded links
 to share.
 
-Credit to [Quiver](https://github.com/varkor/quiver), this project is entirely inspired by their
-work.
-
 Labels use MathJax, so latex-like syntax is supported and SVG export is a path, so no need for font
 logistics.
+
+Credit to [Quiver](https://github.com/varkor/quiver), this project is entirely inspired by their
+work!
+
+## Usage
+
+For now, this is a locally-run project. We use Bun to run it.
+
+```bash
+# Run the project
+bun run start
+
+# Default endpoint.
+# http://localhost:3000
+```
 
 ## Demo
 
