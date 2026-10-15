@@ -11,6 +11,15 @@
  *
  * Results are memoised; typesetting is synchronous because every glyph of the
  * TeX font is bundled (no dynamic font loading).
+ *
+ * Security: labels are untrusted — they arrive in share links and autosave —
+ * and the markup produced here is injected into the page and into exported
+ * SVGs. MathJax's TeX input lets a label set arbitrary attributes
+ * (`\mmlToken{mi}[href="javascript:…" style="…"]{x}` becomes a live link) and
+ * passes unknown colour names through verbatim (`\color{url(https://…)}`
+ * makes the browser fetch that URL). So the markup is never taken from
+ * MathJax as-is: `safeMarkup` rebuilds it from an allowlist of elements and
+ * attributes, with its own escaping.
  */
 import { mathjax } from "@mathjax/src/js/mathjax.js";
 import { TeX } from "@mathjax/src/js/input/tex.js";
@@ -30,7 +39,7 @@ import { MathJaxTexFont } from "@mathjax/mathjax-tex-font/js/svg.js";
 export interface TexBox {
   /** MathJax's viewBox (units of 1/1000 em, y downward, baseline at 0). */
   readonly viewBox: string;
-  /** Inner SVG markup, drawn with `currentColor`. */
+  /** Inner SVG markup, drawn with `currentColor`; sanitized (see `safeMarkup`). */
   readonly body: string;
   readonly width: number;
   readonly ascent: number;
@@ -68,17 +77,104 @@ const doc = mathjax.document("", {
   }),
 });
 
-/** Attributes that only matter for MathJax's own UI / accessibility tooling. */
-const NOISE_ATTRS = / (?:data-[\w-]+|role|focusable|aria-[\w-]+)="[^"]*"/g;
+// ---------------------------------------------------------------------------
+// Sanitizing MathJax's output (see the security note at the top)
+// ---------------------------------------------------------------------------
+
+type LiteNode = Parameters<typeof adaptor.kind>[0];
+type LiteElement = Parameters<typeof adaptor.getAttribute>[0];
+
+/**
+ * Elements MathJax's SVG output uses for the packages loaded above: glyphs
+ * and rules are paths, rects and polygons in nested groups/svgs, array rules
+ * are lines, and characters missing from the TeX font fall back to `<text>`.
+ * Any other element is dropped with its content — e.g. `<image>`, which
+ * `\mmlToken{mglyph}[src="…"]` would otherwise use to fetch a URL. (Loading
+ * more TeX packages may need more here, e.g. `enclose` draws `<ellipse>`.)
+ */
+const ELEMENTS = new Set(["svg", "g", "path", "rect", "polygon", "line", "text"]);
+
+/**
+ * Elements replaced by their children: `<a>` wraps whatever a label gave an
+ * `href` (and `\eqref`, whose target never exists in a label anyway).
+ */
+const UNWRAP = new Set(["a"]);
+
+/**
+ * Attributes whose values MathJax computes (geometry, transforms, the font
+ * fallback for `<text>`). Notably absent: href, style, class, id, event
+ * handlers, and MathJax's data-/aria-/role attributes (only useful to its own
+ * UI and accessibility tooling).
+ */
+const ATTRS = new Set([
+  "d",
+  "points",
+  "transform",
+  "x",
+  "y",
+  "x1",
+  "y1",
+  "x2",
+  "y2",
+  "width",
+  "height",
+  "viewBox",
+  "stroke-width",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+]);
+
+/** Attributes holding a colour, which a label controls through `\color` and friends. */
+const PAINT_ATTRS = new Set(["fill", "stroke"]);
+
+/**
+ * A plain colour: hex, or a bare keyword (a CSS colour name, `currentColor`,
+ * `none`). Rules out `url(…)` paint-server references, which would make the
+ * browser fetch an arbitrary URL.
+ */
+const PAINT = /^(?:#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|[a-z]+)$/i;
+
+const keepAttribute = ({ name, value }: { name: string; value: string }): boolean =>
+  ATTRS.has(name) || (PAINT_ATTRS.has(name) && PAINT.test(value));
+
+/** Escape text for an XML/HTML attribute value or text node. */
+const escapeXml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/**
+ * Serialize a node of MathJax's output keeping only allowlisted elements and
+ * attributes (anything a label could abuse is dropped, not escaped), so the
+ * result is safe to inject into the page and to export.
+ */
+const safeMarkup = (node: LiteNode): string => {
+  const kind = adaptor.kind(node);
+  if (kind === "#text") return escapeXml(adaptor.value(node));
+  if (kind.startsWith("#")) return ""; // comments
+  const element = node as LiteElement;
+  if (UNWRAP.has(kind)) return adaptor.childNodes(element).map(safeMarkup).join("");
+  if (!ELEMENTS.has(kind)) return "";
+  const attrs = adaptor
+    .allAttributes(element)
+    .filter(keepAttribute)
+    .map(({ name, value }) => ` ${name}="${escapeXml(value)}"`)
+    .join("");
+  return `<${kind}${attrs}>${adaptor.childNodes(element).map(safeMarkup).join("")}</${kind}>`;
+};
+
+// ---------------------------------------------------------------------------
+// Typesetting
+// ---------------------------------------------------------------------------
 
 const convert = (tex: string): Omit<TexBox, "error"> => {
   const container = doc.convert(tex, { display: false });
-  const svg = adaptor.firstChild(container) as Parameters<typeof adaptor.getAttribute>[0];
+  const svg = adaptor.firstChild(container) as LiteElement;
   const viewBox = adaptor.getAttribute(svg, "viewBox") ?? "0 0 0 0";
   const [, minY = 0, w = 0, h = 0] = viewBox.split(/\s+/).map(Number);
   return {
     viewBox,
-    body: adaptor.innerHTML(svg).replace(NOISE_ATTRS, ""),
+    body: adaptor.childNodes(svg).map(safeMarkup).join(""),
     width: w / 1000,
     ascent: -minY / 1000,
     descent: (minY + h) / 1000,

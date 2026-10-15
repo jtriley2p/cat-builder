@@ -7,6 +7,10 @@ the architecture. Key constraints:
   (`@mathjax/mathjax-tex-font`), so exports need no fonts. `plugins/mathjax-tex-font.ts` must
   stay registered in both `bunfig.toml` (dev server) and `scripts/build.ts` (production build),
   or MathJax's ~1 MB default font gets bundled.
+- Labels are untrusted (they arrive in share links): MathJax lets TeX set attributes such as
+  `href`/`style` and passes `\color{url(…)}` through. `safeMarkup` in `src/render/tex.ts` rebuilds
+  its SVG from an element/attribute allowlist; never inject MathJax's markup directly, and check
+  the allowlist when loading more TeX packages. The CSP in `src/index.html` is a second layer.
 - Diagram data is never embedded in exported images; persistence is localStorage autosave plus
   share links (`#d=` URL hash). Bump `FORMAT_VERSION` in `src/model/codec.ts` on breaking changes.
 - Colours (stroke and background, each with opacity), label font size and stroke width belong

@@ -2,6 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      Defence in depth for untrusted diagram labels (share links): only the
+      bundled scripts and styles run, which also blocks javascript: URLs, and
+      nothing is fetched from other origins.
+      - script-src blob: is for the dev server's hot reload, which loads
+        updates as blob: scripts. Only script already running here can mint a
+        blob: URL, so this gives injected markup nothing.
+      - img-src data: is for the export preview, blob: for rasterising exports.
+      - In development the console reports one blocked inline script per load:
+        Bun's dev-server tab-visibility ping, which is safe to block.
+      - frame-ancestors can't be set from a meta tag; send it as a header from
+        the host if needed.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' blob:; style-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Draw commutative diagrams with TeX labels and export them as SVG, PNG or WebP." />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />

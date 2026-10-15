@@ -40,6 +40,38 @@ test("multi-line labels: newlines are whitespace and % comments end at the line"
   expect(typeset("f % the map", "script")?.error).toBeNull();
 });
 
+test("labels can't inject links, styles or external references (they arrive in share links)", () => {
+  const attacks = [
+    '\\mmlToken{mi}[href="javascript:alert(1)"]{f}',
+    "\\mmlToken{mi}[href='javascript:alert(1)' style='transform:scale(400)' class=x id=root]{f}",
+    '\\mmlToken{mi}[style="mask:url(https://example.com/m)"]{f}',
+    '\\mmlToken{mglyph}[src="https://example.com/i.png" width="1em" height="1em"]{}',
+    "\\color{url(https://example.com/a)}{f}",
+    "\\colorbox{url(https://example.com/b)}{f}",
+    "\\fcolorbox{url(https://example.com/c)}{url(https://example.com/d)}{f}",
+  ];
+  const banned = ["<a", "<image", "href", "javascript:", "url(", ' style="', ' class="', ' id="'];
+  for (const tex of attacks) {
+    const box = typeset(tex, "script")!;
+    expect(box.error).toBeNull();
+    for (const b of banned) expect(box.body).not.toContain(b);
+  }
+  // The label itself still draws: links are unwrapped, bad colours fall back to the ink.
+  expect(typeset(attacks[0]!, "normal")!.body).toContain("<path");
+  expect(typeset(attacks[4]!, "normal")!.body).toContain("<path");
+});
+
+test("sanitizing keeps what ordinary labels draw", () => {
+  const colours = typeset("\\color{red}{x} \\color{#0a0}{y} \\color[rgb]{0,0.5,1}{z} \\colorbox{yellow}{w}", "normal")!.body;
+  for (const c of ['fill="red"', 'fill="#0a0"', 'fill="#007fff"', 'fill="yellow"']) expect(colours).toContain(c);
+  // Array rules are lines.
+  expect(typeset("\\begin{array}{c|c} a & b \\end{array}", "normal")!.body).toMatch(/<line x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+">/);
+  // Characters missing from the TeX font fall back to <text>.
+  expect(typeset("ж", "normal")!.body).toMatch(/<text [^>]*font-family="serif"[^>]*>ж<\/text>/);
+  // MathJax's own UI/accessibility attributes are dropped.
+  expect(typeset("\\frac{a}{b}", "normal")!.body).not.toMatch(/ (?:data-[\w-]+|role|focusable|aria-[\w-]+)="/);
+});
+
 const BLACK: Paint = { color: "#000000", alpha: 1 };
 const CLEAR: Paint = { color: "#ffffff", alpha: 0 };
 
